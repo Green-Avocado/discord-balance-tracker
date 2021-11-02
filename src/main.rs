@@ -38,9 +38,9 @@ async fn main() {
     let (tx, rx): (Sender<String>, Receiver<String>) = channel(16);
 
     tokio::spawn(async move {
-        let mut rxm = rx;
+        let mut rx = rx;
         loop {
-            let received = rxm.recv().await.unwrap();
+            let received = rx.recv().await.unwrap();
             println!("Got: {}", received);
         }
     });
