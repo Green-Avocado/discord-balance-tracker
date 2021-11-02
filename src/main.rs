@@ -3,16 +3,19 @@ use serenity::{
     client::{Client, Context, EventHandler},
     framework::standard::{
         macros::{command, group},
-        CommandResult, StandardFramework, Args,
+        Args, CommandResult, StandardFramework,
     },
-    model::{channel::Message, prelude::Ready},
     futures::StreamExt,
+    model::{channel::Message, prelude::Ready},
 };
-use typemap_rev::TypeMapKey;
-use signal_hook::{consts::signal::*};
+use signal_hook::consts::signal::*;
 use signal_hook_tokio::Signals;
+use tokio::sync::RwLock;
+use typemap_rev::TypeMapKey;
 
-use std::{env, sync::Arc, process::exit, collections::HashMap};
+use std::{collections::HashMap, env, process::exit, sync::Arc};
+
+static PREFIX: &str = "!";
 
 struct Debt {
     user: u64,
@@ -21,12 +24,12 @@ struct Debt {
 
 struct Accounts;
 
-    impl TypeMapKey for Accounts {
-        type Value = Arc<HashMap<u64, Vec<Debt>>>;
-    }
+impl TypeMapKey for Accounts {
+    type Value = Arc<RwLock<HashMap<u64, Vec<Debt>>>>;
+}
 
 #[group]
-#[commands(balance, pay, bill)]
+#[commands(group, balance, pay, bill)]
 struct General;
 
 struct Handler;
@@ -44,7 +47,7 @@ async fn handle_signals(signals: Signals) {
         match signal {
             SIGTERM | SIGINT => {
                 exit(0);
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -52,14 +55,11 @@ async fn handle_signals(signals: Signals) {
 
 #[tokio::main]
 async fn main() {
-    let signals = Signals::new(&[
-        SIGTERM,
-        SIGINT,
-    ]).unwrap();
+    let signals = Signals::new(&[SIGTERM, SIGINT]).unwrap();
     tokio::spawn(handle_signals(signals));
 
     let framework = StandardFramework::new()
-        .configure(|c| c.prefix("!"))
+        .configure(|c| c.prefix(PREFIX))
         .group(&GENERAL_GROUP);
 
     let token = env::var("DISCORD_TOKEN").expect("token");
@@ -71,7 +71,7 @@ async fn main() {
 
     {
         let mut data = client.data.write().await;
-        data.insert::<Accounts>(Arc::new(HashMap::new()));
+        data.insert::<Accounts>(Arc::new(RwLock::new(HashMap::new())));
     }
 
     if let Err(why) = client.start().await {
@@ -80,7 +80,50 @@ async fn main() {
 }
 
 #[command]
+async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    if args.len() == 0 {
+        msg.reply(ctx, "group").await?;
+    } else {
+        match args.current().unwrap() {
+            "add" => {
+                if args.remaining() > 1 {
+                    args.advance();
+                } else {
+                    msg.reply(ctx, format!("Usage: {}group add [USERS]", PREFIX))
+                        .await?;
+                }
+            }
+            "remove" => {
+                if args.remaining() > 1 {
+                    args.advance();
+                } else {
+                    msg.reply(ctx, format!("Usage: {}group remove [USERS]", PREFIX))
+                        .await?;
+                }
+            }
+            _ => {
+                msg.reply(ctx, format!("Usage: {}group [COMMAND] [USERS]", PREFIX))
+                    .await?;
+            }
+        };
+    }
+
+    Ok(())
+}
+
+#[command]
 async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let accounts = ctx
+        .data
+        .read()
+        .await
+        .get::<Accounts>()
+        .unwrap()
+        .read()
+        .await
+        .get(&1)
+        .map_or(&Vec::<Debt>::new(), |x| x);
+
     match args.len() {
         0 => msg.reply(ctx, "Your balance: ").await?,
         1 => msg.reply(ctx, "Their balance: ").await?,
