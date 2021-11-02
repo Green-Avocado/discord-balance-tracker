@@ -69,7 +69,7 @@ async fn main() {
     });
 
     let framework = StandardFramework::new()
-        .configure(|c| c.prefix(""))
+        .configure(|c| c.prefix("!"))
         .group(&GENERAL_GROUP);
 
     let token = env::var("DISCORD_TOKEN").expect("token");
