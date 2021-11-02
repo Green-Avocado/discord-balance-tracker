@@ -3,25 +3,30 @@ use serenity::{
     client::{Client, Context, EventHandler},
     framework::standard::{
         macros::{command, group},
-        CommandResult, StandardFramework,
+        CommandResult, StandardFramework, Args,
     },
     model::{channel::Message, prelude::Ready},
+    futures::StreamExt,
 };
-
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-
 use typemap_rev::TypeMapKey;
+use signal_hook::{consts::signal::*};
+use signal_hook_tokio::Signals;
 
-use std::{env, sync::Arc};
+use std::{env, sync::Arc, process::exit, collections::HashMap};
 
-struct WriteQueueSender;
-
-impl TypeMapKey for WriteQueueSender {
-    type Value = Arc<Sender<String>>;
+struct Debt {
+    user: u64,
+    amount: i32,
 }
 
+struct Accounts;
+
+    impl TypeMapKey for Accounts {
+        type Value = Arc<HashMap<u64, Vec<Debt>>>;
+    }
+
 #[group]
-#[commands(balance, pay, charge)]
+#[commands(balance, pay, bill)]
 struct General;
 
 struct Handler;
@@ -33,17 +38,25 @@ impl EventHandler for Handler {
     }
 }
 
+async fn handle_signals(signals: Signals) {
+    let mut signals = signals.fuse();
+    while let Some(signal) = signals.next().await {
+        match signal {
+            SIGTERM | SIGINT => {
+                exit(0);
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
-    let (tx, rx): (Sender<String>, Receiver<String>) = channel(16);
-
-    tokio::spawn(async move {
-        let mut rx = rx;
-        loop {
-            let received = rx.recv().await.unwrap();
-            println!("Got: {}", received);
-        }
-    });
+    let signals = Signals::new(&[
+        SIGTERM,
+        SIGINT,
+    ]).unwrap();
+    tokio::spawn(handle_signals(signals));
 
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("!"))
@@ -58,7 +71,7 @@ async fn main() {
 
     {
         let mut data = client.data.write().await;
-        data.insert::<WriteQueueSender>(Arc::new(tx));
+        data.insert::<Accounts>(Arc::new(HashMap::new()));
     }
 
     if let Err(why) = client.start().await {
@@ -67,40 +80,26 @@ async fn main() {
 }
 
 #[command]
-async fn balance(ctx: &Context, msg: &Message) -> CommandResult {
-    msg.reply(ctx, "Balance: ").await?;
+async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    match args.len() {
+        0 => msg.reply(ctx, "Your balance: ").await?,
+        1 => msg.reply(ctx, "Their balance: ").await?,
+        _ => msg.reply(ctx, "Usage: ").await?,
+    };
 
     Ok(())
 }
 
 #[command]
-async fn pay(ctx: &Context, msg: &Message) -> CommandResult {
+async fn pay(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     msg.reply(ctx, "Pay").await?;
 
-    let tx = ctx
-        .data
-        .read()
-        .await
-        .get::<WriteQueueSender>()
-        .unwrap()
-        .clone();
-    tx.send("Payment".to_string()).await.unwrap();
-
     Ok(())
 }
 
 #[command]
-async fn charge(ctx: &Context, msg: &Message) -> CommandResult {
+async fn bill(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     msg.reply(ctx, "Charge").await?;
-
-    let tx = ctx
-        .data
-        .read()
-        .await
-        .get::<WriteQueueSender>()
-        .unwrap()
-        .clone();
-    tx.send("Charge".to_string()).await.unwrap();
 
     Ok(())
 }
