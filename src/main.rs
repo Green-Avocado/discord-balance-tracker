@@ -1,36 +1,18 @@
 use serenity::{
     async_trait,
-    model::{
-        channel::Message,
-        prelude::Ready,
-    },
-    client::{
-        Client,
-        Context,
-        EventHandler,
-    },
+    client::{Client, Context, EventHandler},
     framework::standard::{
-        CommandResult,
-        StandardFramework,
-        macros::{
-            command,
-            group,
-        },
+        macros::{command, group},
+        CommandResult, StandardFramework,
     },
+    model::{channel::Message, prelude::Ready},
 };
 
-use tokio::sync::mpsc::{
-    Receiver,
-    Sender,
-    channel,
-};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use typemap_rev::TypeMapKey;
 
-use std::{
-    sync::Arc,
-    env,
-};
+use std::{env, sync::Arc};
 
 struct WriteQueueSender;
 
@@ -39,12 +21,7 @@ impl TypeMapKey for WriteQueueSender {
 }
 
 #[group]
-#[commands(
-    balance,
-    pay,
-    charge,
-    )
-]
+#[commands(balance, pay, charge)]
 struct General;
 
 struct Handler;
@@ -100,7 +77,13 @@ async fn balance(ctx: &Context, msg: &Message) -> CommandResult {
 async fn pay(ctx: &Context, msg: &Message) -> CommandResult {
     msg.reply(ctx, "Pay").await?;
 
-    let tx = ctx.data.read().await.get::<WriteQueueSender>().unwrap().clone();
+    let tx = ctx
+        .data
+        .read()
+        .await
+        .get::<WriteQueueSender>()
+        .unwrap()
+        .clone();
     tx.send("Payment".to_string()).await.unwrap();
 
     Ok(())
@@ -110,7 +93,13 @@ async fn pay(ctx: &Context, msg: &Message) -> CommandResult {
 async fn charge(ctx: &Context, msg: &Message) -> CommandResult {
     msg.reply(ctx, "Charge").await?;
 
-    let tx = ctx.data.read().await.get::<WriteQueueSender>().unwrap().clone();
+    let tx = ctx
+        .data
+        .read()
+        .await
+        .get::<WriteQueueSender>()
+        .unwrap()
+        .clone();
     tx.send("Charge".to_string()).await.unwrap();
 
     Ok(())
