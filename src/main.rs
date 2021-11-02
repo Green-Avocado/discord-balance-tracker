@@ -28,6 +28,12 @@ impl TypeMapKey for Accounts {
     type Value = Arc<RwLock<HashMap<u64, Vec<Debt>>>>;
 }
 
+struct Members;
+
+impl TypeMapKey for Members {
+    type Value = Arc<RwLock<Vec<u64>>>;
+}
+
 #[group]
 #[commands(group, balance, pay, bill)]
 struct General;
@@ -72,6 +78,7 @@ async fn main() {
     {
         let mut data = client.data.write().await;
         data.insert::<Accounts>(Arc::new(RwLock::new(HashMap::new())));
+        data.insert::<Members>(Arc::new(RwLock::new(Vec::new())));
     }
 
     if let Err(why) = client.start().await {
@@ -88,6 +95,20 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             "add" => {
                 if args.remaining() > 1 {
                     args.advance();
+                    for arg in args.iter::<u64>() {
+                        let arg = arg.unwrap_or(0);
+                        let group_lock = {
+                            let data_read = ctx.data.read().await;
+                            data_read.get::<Members>().unwrap().clone()
+                        };
+
+                        {
+                            let mut group = group_lock.write().await;
+                            if !group.contains(&arg) {
+                                group.push(arg);
+                            }
+                        }
+                    }
                 } else {
                     msg.reply(ctx, format!("Usage: {}group add [USERS]", PREFIX))
                         .await?;
@@ -96,8 +117,26 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             "remove" => {
                 if args.remaining() > 1 {
                     args.advance();
+                    for arg in args.iter::<u64>() {
+                        let arg = arg.unwrap_or(0);
+                    }
                 } else {
                     msg.reply(ctx, format!("Usage: {}group remove [USERS]", PREFIX))
+                        .await?;
+                }
+            }
+            "list" => {
+                if args.remaining() == 1 {
+                    let group_lock = {
+                        let data_read = ctx.data.read().await;
+                        data_read.get::<Members>().unwrap().clone()
+                    };
+                    let group = group_lock.read().await;
+
+                    let user_list: String = group.iter().map(|x| format!("<@{}>\n", *x)).collect();
+                    msg.reply(ctx, user_list).await?;
+                } else {
+                    msg.reply(ctx, format!("Usage: {}group list", PREFIX))
                         .await?;
                 }
             }
@@ -113,16 +152,12 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
 #[command]
 async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let accounts = ctx
-        .data
-        .read()
-        .await
-        .get::<Accounts>()
-        .unwrap()
-        .read()
-        .await
-        .get(&1)
-        .map_or(&Vec::<Debt>::new(), |x| x);
+    let accounts_lock = {
+        let data_read = ctx.data.read().await;
+        data_read.get::<Accounts>().unwrap().clone()
+    };
+
+    let accounts = accounts_lock.read().await.get(&1).map_or(&Vec::<Debt>::new(), |x| x);
 
     match args.len() {
         0 => msg.reply(ctx, "Your balance: ").await?,
