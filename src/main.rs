@@ -309,15 +309,27 @@ async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             msg.reply(ctx, "Billed").await?;
         }
         _ => {
-            let amount = parse_money(args.current().unwrap()).unwrap_or(0);
+            let amount = match parse_money(args.current().unwrap()) {
+                Ok(amount) => amount,
+                Err(_) => {
+                    msg.reply(ctx, "Error parsing amount").await?;
+                    return Ok(());
+                }
+            };
             args.advance();
 
             let mut accounts = accounts_lock.write().await;
             let mut i = 0;
-            while !args.is_empty() {
-                let arg = parse_mention(args.current().unwrap()).unwrap();
-                args.advance();
-                let receiver_entry = accounts.entry(arg).or_insert(0);
+            let mention_list = match parse_mention_list(&mut args) {
+                Ok(list) => list,
+                Err(_) => {
+                    msg.reply(ctx, "Error parsing user ids").await?;
+                    return Ok(());
+                }
+            };
+
+            for user_id in mention_list {
+                let receiver_entry = accounts.entry(user_id).or_insert(0);
                 *receiver_entry -= amount;
                 i += 1;
             }
@@ -376,14 +388,28 @@ fn parse_money(mut input: &str) -> Result<i32, ParseMoneyError> {
 }
 
 fn parse_mention_list(inputs: &mut Args) -> Result<Vec<UserId>, ParseMentionError> {
-    Ok(Vec::new())
+    let mut vec = Vec::new();
+
+    loop {
+        let user_id = match inputs.current() {
+            Some(id) => match parse_mention(id) {
+                Ok(user_id) => user_id,
+                Err(_) => return Err(ParseMentionError),
+            },
+            None => break,
+        };
+
+        vec.push(user_id);
+
+        inputs.advance();
+    }
+
+    Ok(vec)
 }
 
 fn parse_mention(input: &str) -> Result<UserId, ParseMentionError> {
-    let s = input.strip_prefix("<@!");
-    if let Some(s) = s {
-        let s = s.strip_suffix(">");
-        if let Some(s) = s {
+    if let Some(s) = input.strip_prefix("<@!") {
+        if let Some(s) = s.strip_suffix(">") {
             match s.parse::<u64>() {
                 Ok(id) => return Ok(UserId(id)),
                 Err(_) => {}
