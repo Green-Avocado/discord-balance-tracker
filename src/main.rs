@@ -127,7 +127,7 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                                 if *user == arg {
                                     break;
                                 }
-                                i = i + 1;
+                                i += 1;
                             }
                             group.remove(i);
                         }
@@ -146,8 +146,15 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                     };
                     let group = group_lock.read().await;
 
-                    let user_list: String = group.iter().map(|x| format!("<@{}>\n", *x)).collect();
-                    msg.reply(ctx, user_list).await?;
+                    if group.is_empty() {
+                        msg.reply(ctx, "No users in group").await?;
+                    } else {
+                        let user_list: String = group
+                            .iter()
+                            .map(|x| format!("<@{}> {}\n", *x, *x))
+                            .collect();
+                        msg.reply(ctx, user_list).await?;
+                    }
                 } else {
                     msg.reply(ctx, format!("Usage: {}group list", PREFIX))
                         .await?;
@@ -174,23 +181,27 @@ async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
     match args.len() {
         0 => {
+            let balance = accounts.get(&msg.author.id).map_or(0, |x| *x);
             msg.reply(
                 ctx,
                 format!(
-                    "Your balance: {}",
-                    accounts.get(&msg.author.id).map_or(0, |x| *x)
+                    "Your balance: {}.{:0>2}",
+                    balance.div_euclid(100),
+                    balance.rem_euclid(100)
                 ),
             )
             .await?
         }
         1 => {
+            let balance = accounts
+                .get(&UserId(args.parse::<u64>().unwrap_or(0)))
+                .map_or(0, |x| *x);
             msg.reply(
                 ctx,
                 format!(
-                    "Their balance: {}",
-                    accounts
-                        .get(&UserId(args.parse::<u64>().unwrap_or(0)))
-                        .map_or(0, |x| *x)
+                    "Their balance: {}.{:0>2}",
+                    balance.div_euclid(100),
+                    balance.rem_euclid(100)
                 ),
             )
             .await?
@@ -205,13 +216,27 @@ async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
-async fn pay(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let accounts_lock = {
-        let data_read = ctx.data.read().await;
-        data_read.get::<Accounts>().unwrap().clone()
-    };
-
+async fn pay(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     if args.len() == 2 {
+        let accounts_lock = {
+            let data_read = ctx.data.read().await;
+            data_read.get::<Accounts>().unwrap().clone()
+        };
+
+        let amount = args.single::<i32>().unwrap_or(0);
+        let receiver = args.single::<u64>().unwrap_or(0);
+
+        {
+            let mut accounts = accounts_lock.write().await;
+            {
+                let receiver_entry = accounts.entry(UserId(receiver)).or_insert(0);
+                *receiver_entry += amount;
+            }
+            {
+                let sender_entry = accounts.entry(msg.author.id).or_insert(0);
+                *sender_entry -= amount;
+            }
+        }
     } else {
         msg.reply(ctx, format!("Usage: {}pay amount USER", PREFIX))
             .await?;
@@ -222,12 +247,12 @@ async fn pay(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
 #[command]
 async fn bill(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let accounts_lock = {
-        let data_read = ctx.data.read().await;
-        data_read.get::<Accounts>().unwrap().clone()
-    };
-
-    if args.len() == 0 {
+    if args.len() != 0 {
+        let accounts_lock = {
+            let data_read = ctx.data.read().await;
+            data_read.get::<Accounts>().unwrap().clone()
+        };
+    } else {
         msg.reply(ctx, format!("Usage: {}bill amount [USERS]", PREFIX))
             .await?;
     }
