@@ -183,7 +183,18 @@ async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             )
             .await?
         }
-        1 => msg.reply(ctx, "Their balance: ").await?,
+        1 => {
+            msg.reply(
+                ctx,
+                format!(
+                    "Their balance: {}",
+                    accounts
+                        .get(&UserId(args.parse::<u64>().unwrap_or(0)))
+                        .map_or(0, |x| *x)
+                ),
+            )
+            .await?
+        }
         _ => {
             msg.reply(ctx, format!("Usage: {}balance [USER]", PREFIX))
                 .await?
@@ -200,7 +211,8 @@ async fn pay(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         data_read.get::<Accounts>().unwrap().clone()
     };
 
-    if args.len() == 0 {
+    if args.len() == 2 {
+    } else {
         msg.reply(ctx, format!("Usage: {}pay amount USER", PREFIX))
             .await?;
     }
