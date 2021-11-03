@@ -13,7 +13,7 @@ use signal_hook_tokio::Signals;
 use tokio::sync::RwLock;
 use typemap_rev::TypeMapKey;
 
-use std::{collections::HashMap, env, process::exit, sync::Arc};
+use std::{collections::HashMap, env, num::ParseIntError, process::exit, sync::Arc};
 
 static PREFIX: &str = "!";
 
@@ -182,29 +182,13 @@ async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     match args.len() {
         0 => {
             let balance = accounts.get(&msg.author.id).map_or(0, |x| *x);
-            msg.reply(
-                ctx,
-                format!(
-                    "Your balance: {}.{:0>2}",
-                    balance.div_euclid(100),
-                    balance.rem_euclid(100)
-                ),
-            )
-            .await?
+            msg.reply(ctx, format_money(balance)).await?
         }
         1 => {
             let balance = accounts
                 .get(&UserId(args.parse::<u64>().unwrap_or(0)))
                 .map_or(0, |x| *x);
-            msg.reply(
-                ctx,
-                format!(
-                    "Their balance: {}.{:0>2}",
-                    balance.div_euclid(100),
-                    balance.rem_euclid(100)
-                ),
-            )
-            .await?
+            msg.reply(ctx, format_money(balance)).await?
         }
         _ => {
             msg.reply(ctx, format!("Usage: {}balance [USER]", PREFIX))
@@ -223,7 +207,7 @@ async fn pay(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             data_read.get::<Accounts>().unwrap().clone()
         };
 
-        let amount = args.single::<i32>().unwrap_or(0);
+        let amount = parse_money(args.current().unwrap()).unwrap_or(0);
         let receiver = args.single::<u64>().unwrap_or(0);
 
         {
@@ -258,4 +242,37 @@ async fn bill(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     }
 
     Ok(())
+}
+
+fn format_money(money: i32) -> String {
+    let mut string;
+    if money >= 0 {
+        string = format!("{:0>3}", money);
+    } else {
+        string = format!("-{:0>3}", -money);
+    }
+    string.insert(string.len() - 2, '.');
+    string
+}
+
+fn parse_money(input: &str) -> Result<i32, ParseIntError> {
+    let mut negative = false;
+
+    if input.chars().nth(0).unwrap() == '-' {
+        negative = true;
+    }
+
+    let mut split = input.split('.');
+    let mut money = split.next().unwrap().parse::<i32>().unwrap_or(0) * 100;
+    let next = split.next();
+    if next.is_some() {
+        let cents = next.unwrap().parse::<i32>().unwrap_or(0);
+        if negative {
+            money -= cents;
+        } else {
+            money += cents;
+        }
+    }
+
+    Ok(money)
 }
