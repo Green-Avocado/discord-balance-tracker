@@ -119,6 +119,23 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                     args.advance();
                     for arg in args.iter::<u64>() {
                         let arg = arg.unwrap_or(0);
+                        let group_lock = {
+                            let data_read = ctx.data.read().await;
+                            data_read.get::<Members>().unwrap().clone()
+                        };
+
+                        {
+                            let mut i = 0;
+                            let mut group = group_lock.write().await;
+                            for user in group.iter() {
+                                if *user == arg {
+                                    break;
+                                }
+                                i = i + 1;
+                            }
+                            group.remove(i);
+                        }
+
                     }
                 } else {
                     msg.reply(ctx, format!("Usage: {}group remove [USERS]", PREFIX))
