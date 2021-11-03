@@ -52,7 +52,7 @@ impl TypeMapKey for Members {
 }
 
 #[group]
-#[commands(group, balance, pay, bill)]
+#[commands(group, balance, owe, bill)]
 struct General;
 
 struct Handler;
@@ -172,11 +172,25 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                     };
                     let group = group_lock.read().await;
 
+                    let accounts_lock = {
+                        let data_read = ctx.data.read().await;
+                        data_read.get::<Accounts>().unwrap().clone()
+                    };
+                    let accounts = accounts_lock.read().await;
+
                     if group.is_empty() {
                         msg.reply(ctx, "No users in group").await?;
                     } else {
-                        let user_list: String =
-                            group.iter().map(|x| format!("<@{}>\n", *x)).collect();
+                        let user_list: String = group
+                            .iter()
+                            .map(|x| {
+                                format!(
+                                    "<@{}>: {}\n",
+                                    *x,
+                                    format_money(accounts.get(x).map_or(0, |x| *x))
+                                )
+                            })
+                            .collect();
                         msg.reply(ctx, user_list).await?;
                     }
                 } else {
@@ -226,7 +240,7 @@ async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
-async fn pay(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+async fn owe(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     if args.len() == 2 {
         let accounts_lock = {
             let data_read = ctx.data.read().await;
@@ -248,10 +262,13 @@ async fn pay(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                 *sender_entry -= amount;
             }
         }
-        msg.reply(ctx, format!("Paid {} to <@{}>", format_money(amount), receiver))
-            .await?;
+        msg.reply(
+            ctx,
+            format!("Owe {} to <@{}>", format_money(amount), receiver),
+        )
+        .await?;
     } else {
-        msg.reply(ctx, format!("Usage: {}pay amount @USER", PREFIX))
+        msg.reply(ctx, format!("Usage: {}owe amount @USER", PREFIX))
             .await?;
     }
 
@@ -298,10 +315,10 @@ async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             let mut accounts = accounts_lock.write().await;
             let mut i = 0;
             while !args.is_empty() {
-                let arg = args.current().unwrap();
-                let receiver_entry = accounts.entry(parse_mention(arg).unwrap()).or_insert(0);
-                *receiver_entry -= amount;
+                let arg = parse_mention(args.current().unwrap()).unwrap();
                 args.advance();
+                let receiver_entry = accounts.entry(arg).or_insert(0);
+                *receiver_entry -= amount;
                 i += 1;
             }
             {
@@ -356,6 +373,10 @@ fn parse_money(mut input: &str) -> Result<i32, ParseMoneyError> {
     } else {
         Ok(money.into())
     }
+}
+
+fn parse_mention_list(inputs: &mut Args) -> Result<Vec<UserId>, ParseMentionError> {
+    Ok(Vec::new())
 }
 
 fn parse_mention(input: &str) -> Result<UserId, ParseMentionError> {
