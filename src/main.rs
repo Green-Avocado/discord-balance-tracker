@@ -6,7 +6,7 @@ use serenity::{
         Args, CommandResult, StandardFramework,
     },
     futures::StreamExt,
-    model::{channel::Message, prelude::Ready, id::UserId},
+    model::{channel::Message, id::UserId, prelude::Ready},
 };
 use signal_hook::consts::signal::*;
 use signal_hook_tokio::Signals;
@@ -170,14 +170,24 @@ async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         data_read.get::<Accounts>().unwrap().clone()
     };
 
-    let accounts = accounts_lock
-        .read()
-        .await;
+    let accounts = accounts_lock.read().await;
 
     match args.len() {
-        0 => msg.reply(ctx, format!("Your balance: {}", accounts.get(&msg.author.id).map_or(0, |x| *x))).await?,
+        0 => {
+            msg.reply(
+                ctx,
+                format!(
+                    "Your balance: {}",
+                    accounts.get(&msg.author.id).map_or(0, |x| *x)
+                ),
+            )
+            .await?
+        }
         1 => msg.reply(ctx, "Their balance: ").await?,
-        _ => msg.reply(ctx, format!("Usage: {}balance [USER]", PREFIX)).await?,
+        _ => {
+            msg.reply(ctx, format!("Usage: {}balance [USER]", PREFIX))
+                .await?
+        }
     };
 
     Ok(())
@@ -191,7 +201,8 @@ async fn pay(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     };
 
     if args.len() == 0 {
-        msg.reply(ctx, format!("Usage: {}pay amount USER", PREFIX)).await?;
+        msg.reply(ctx, format!("Usage: {}pay amount USER", PREFIX))
+            .await?;
     }
 
     Ok(())
@@ -205,7 +216,8 @@ async fn bill(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     };
 
     if args.len() == 0 {
-        msg.reply(ctx, format!("Usage: {}bill amount [USERS]", PREFIX)).await?;
+        msg.reply(ctx, format!("Usage: {}bill amount [USERS]", PREFIX))
+            .await?;
     }
 
     Ok(())
