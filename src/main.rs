@@ -204,16 +204,18 @@ async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     match args.len() {
         0 => {
             let balance = accounts.get(&msg.author.id).map_or(0, |x| *x);
-            msg.reply(ctx, format_money(balance)).await?
+            msg.reply(ctx, format!("Your balance: {}", format_money(balance)))
+                .await?
         }
         1 => {
             let balance = accounts
-                .get(&UserId(args.parse::<u64>().unwrap_or(0)))
+                .get(&parse_mention(args.current().unwrap()).unwrap())
                 .map_or(0, |x| *x);
-            msg.reply(ctx, format_money(balance)).await?
+            msg.reply(ctx, format!("Their balance: {}", format_money(balance)))
+                .await?
         }
         _ => {
-            msg.reply(ctx, format!("Usage: {}balance [USER]", PREFIX))
+            msg.reply(ctx, format!("Usage: {}balance [@USER]", PREFIX))
                 .await?
         }
     };
@@ -229,13 +231,14 @@ async fn pay(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             data_read.get::<Accounts>().unwrap().clone()
         };
 
-        let amount = parse_money(args.current().unwrap()).unwrap_or(0);
-        let receiver = args.single::<u64>().unwrap_or(0);
+        let amount = parse_money(args.current().unwrap()).unwrap();
+        args.advance();
+        let receiver = parse_mention(args.current().unwrap()).unwrap();
 
         {
             let mut accounts = accounts_lock.write().await;
             {
-                let receiver_entry = accounts.entry(UserId(receiver)).or_insert(0);
+                let receiver_entry = accounts.entry(receiver).or_insert(0);
                 *receiver_entry += amount;
             }
             {
@@ -244,7 +247,7 @@ async fn pay(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             }
         }
     } else {
-        msg.reply(ctx, format!("Usage: {}pay amount USER", PREFIX))
+        msg.reply(ctx, format!("Usage: {}pay amount @USER", PREFIX))
             .await?;
     }
 
@@ -260,7 +263,7 @@ async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
     match args.len() {
         0 => {
-            msg.reply(ctx, format!("Usage: {}bill amount [USERS]", PREFIX))
+            msg.reply(ctx, format!("Usage: {}bill amount [@USERS]", PREFIX))
                 .await?;
         }
         1 => {
@@ -289,10 +292,11 @@ async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
             let mut accounts = accounts_lock.write().await;
             let mut i = 0;
-            for arg in args.iter::<u64>() {
-                let arg = arg.unwrap_or(0);
-                let receiver_entry = accounts.entry(UserId(arg)).or_insert(0);
+            while !args.is_empty() {
+                let arg = args.current().unwrap();
+                let receiver_entry = accounts.entry(parse_mention(arg).unwrap()).or_insert(0);
                 *receiver_entry -= amount;
+                args.advance();
                 i += 1;
             }
             {
@@ -348,13 +352,13 @@ fn parse_money(mut input: &str) -> Result<i32, ParseMoneyError> {
     }
 }
 
-fn parse_mention(input: &str) -> Result<u64, ParseMentionError> {
-    let s = input.strip_prefix("<@");
+fn parse_mention(input: &str) -> Result<UserId, ParseMentionError> {
+    let s = input.strip_prefix("<@!");
     if let Some(s) = s {
         let s = s.strip_suffix(">");
         if let Some(s) = s {
             match s.parse::<u64>() {
-                Ok(id) => return Ok(id),
+                Ok(id) => return Ok(UserId(id)),
                 Err(_) => {}
             };
         }
