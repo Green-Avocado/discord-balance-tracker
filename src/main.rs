@@ -324,10 +324,20 @@ fn parse_money(input: &str) -> Result<i32, ParseMoneyError> {
     }
 
     let mut split = input.split('.');
-    let mut money = split.next().unwrap().parse::<i32>().unwrap_or(0) * 100;
-    let next = split.next();
-    if next.is_some() {
-        let cents = next.unwrap().parse::<i32>().unwrap_or(0);
+
+    let mut money = match split.next() {
+        Some(dollars) => match dollars.parse::<i32>() {
+            Ok(dollars) => dollars * 100,
+            Err(_) => return Err(ParseMoneyError),
+        },
+        None => return Err(ParseMoneyError),
+    };
+
+    if let Some(next) = split.next() {
+        let cents = match next.parse::<i32>() {
+            Ok(cents) => cents,
+            Err(_) => return Err(ParseMoneyError),
+        };
         if negative {
             money -= cents;
         } else {
