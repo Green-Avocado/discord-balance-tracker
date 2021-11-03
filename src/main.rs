@@ -13,9 +13,31 @@ use signal_hook_tokio::Signals;
 use tokio::sync::RwLock;
 use typemap_rev::TypeMapKey;
 
-use std::{collections::HashMap, env, num::ParseIntError, process::exit, sync::Arc};
+use std::{collections::HashMap, error::Error, fmt, process::exit, sync::Arc};
 
 static PREFIX: &str = "!";
+
+#[derive(Debug, Clone)]
+struct ParseMoneyError;
+
+impl fmt::Display for ParseMoneyError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "could not parse money")
+    }
+}
+
+impl Error for ParseMoneyError {}
+
+#[derive(Debug, Clone)]
+struct ParseMentionError;
+
+impl fmt::Display for ParseMentionError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "could not parse mention")
+    }
+}
+
+impl Error for ParseMentionError {}
 
 struct Accounts;
 
@@ -63,7 +85,7 @@ async fn main() {
         .configure(|c| c.prefix(PREFIX))
         .group(&GENERAL_GROUP);
 
-    let token = env::var("DISCORD_TOKEN").expect("token");
+    let token = std::env::var("DISCORD_TOKEN").expect("token");
     let mut client = Client::builder(token)
         .event_handler(Handler)
         .framework(framework)
@@ -294,7 +316,7 @@ fn format_money(money: i32) -> String {
     string
 }
 
-fn parse_money(input: &str) -> Result<i32, ParseIntError> {
+fn parse_money(input: &str) -> Result<i32, ParseMoneyError> {
     let mut negative = false;
 
     if input.chars().nth(0).unwrap() == '-' {
@@ -314,4 +336,19 @@ fn parse_money(input: &str) -> Result<i32, ParseIntError> {
     }
 
     Ok(money)
+}
+
+fn parse_mention(input: &str) -> Result<u64, ParseMentionError> {
+    let s = input.strip_prefix("<@");
+    if let Some(s) = s {
+        let s = s.strip_suffix(">");
+        if let Some(s) = s {
+            match s.parse::<u64>() {
+                Ok(id) => return Ok(id),
+                Err(_) => {}
+            };
+        }
+    }
+
+    Err(ParseMentionError)
 }
