@@ -316,17 +316,18 @@ fn format_money(money: i32) -> String {
     string
 }
 
-fn parse_money(input: &str) -> Result<i32, ParseMoneyError> {
+fn parse_money(mut input: &str) -> Result<i32, ParseMoneyError> {
     let mut negative = false;
 
     if input.chars().nth(0).unwrap() == '-' {
         negative = true;
+        input = &((*input)[1..]);
     }
 
-    let mut split = input.split('.');
+    let mut split = (*input).split('.');
 
     let mut money = match split.next() {
-        Some(dollars) => match dollars.parse::<i32>() {
+        Some(dollars) => match dollars.parse::<u16>() {
             Ok(dollars) => dollars * 100,
             Err(_) => return Err(ParseMoneyError),
         },
@@ -334,18 +335,17 @@ fn parse_money(input: &str) -> Result<i32, ParseMoneyError> {
     };
 
     if let Some(next) = split.next() {
-        let cents = match next.parse::<i32>() {
-            Ok(cents) => cents,
+        match next.parse::<u16>() {
+            Ok(cents) => money += cents,
             Err(_) => return Err(ParseMoneyError),
         };
-        if negative {
-            money -= cents;
-        } else {
-            money += cents;
-        }
     }
 
-    Ok(money)
+    if negative {
+        Ok(-(i32::from(money)))
+    } else {
+        Ok(money.into())
+    }
 }
 
 fn parse_mention(input: &str) -> Result<u64, ParseMentionError> {
