@@ -48,7 +48,7 @@ impl TypeMapKey for Accounts {
 struct Members;
 
 impl TypeMapKey for Members {
-    type Value = Arc<RwLock<Vec<u64>>>;
+    type Value = Arc<RwLock<Vec<UserId>>>;
 }
 
 #[group]
@@ -112,12 +112,14 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             "add" => {
                 if args.remaining() > 1 {
                     args.advance();
-                    for arg in args.iter::<u64>() {
-                        let arg = arg.unwrap_or(0);
-                        let group_lock = {
-                            let data_read = ctx.data.read().await;
-                            data_read.get::<Members>().unwrap().clone()
-                        };
+                    let group_lock = {
+                        let data_read = ctx.data.read().await;
+                        data_read.get::<Members>().unwrap().clone()
+                    };
+
+                    while !args.is_empty() {
+                        let arg = parse_mention(args.current().unwrap()).unwrap();
+                        args.advance();
 
                         {
                             let mut group = group_lock.write().await;
@@ -135,12 +137,14 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             "remove" => {
                 if args.remaining() > 1 {
                     args.advance();
-                    for arg in args.iter::<u64>() {
-                        let arg = arg.unwrap_or(0);
-                        let group_lock = {
-                            let data_read = ctx.data.read().await;
-                            data_read.get::<Members>().unwrap().clone()
-                        };
+                    let group_lock = {
+                        let data_read = ctx.data.read().await;
+                        data_read.get::<Members>().unwrap().clone()
+                    };
+
+                    while !args.is_empty() {
+                        let arg = parse_mention(args.current().unwrap()).unwrap();
+                        args.advance();
 
                         {
                             let mut i = 0;
@@ -171,10 +175,8 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                     if group.is_empty() {
                         msg.reply(ctx, "No users in group").await?;
                     } else {
-                        let user_list: String = group
-                            .iter()
-                            .map(|x| format!("<@{}> {}\n", *x, *x))
-                            .collect();
+                        let user_list: String =
+                            group.iter().map(|x| format!("<@{}>\n", *x)).collect();
                         msg.reply(ctx, user_list).await?;
                     }
                 } else {
@@ -246,6 +248,8 @@ async fn pay(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                 *sender_entry -= amount;
             }
         }
+        msg.reply(ctx, format!("Paid {} to <@{}>", format_money(amount), receiver))
+            .await?;
     } else {
         msg.reply(ctx, format!("Usage: {}pay amount @USER", PREFIX))
             .await?;
@@ -277,7 +281,7 @@ async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             let mut accounts = accounts_lock.write().await;
             let mut i = 0;
             for user in group.iter() {
-                let receiver_entry = accounts.entry(UserId(*user)).or_insert(0);
+                let receiver_entry = accounts.entry(*user).or_insert(0);
                 *receiver_entry -= amount;
                 i += 1;
             }
@@ -285,6 +289,7 @@ async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                 let sender_entry = accounts.entry(msg.author.id).or_insert(0);
                 *sender_entry += amount * i;
             }
+            msg.reply(ctx, "Billed").await?;
         }
         _ => {
             let amount = parse_money(args.current().unwrap()).unwrap_or(0);
@@ -303,6 +308,7 @@ async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                 let sender_entry = accounts.entry(msg.author.id).or_insert(0);
                 *sender_entry += amount * i;
             }
+            msg.reply(ctx, "Billed").await?;
         }
     }
 
