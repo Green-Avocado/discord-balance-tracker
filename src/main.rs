@@ -6,7 +6,7 @@ use serenity::{
         Args, CommandResult, StandardFramework,
     },
     futures::StreamExt,
-    model::{channel::Message, prelude::Ready},
+    model::{channel::Message, prelude::Ready, id::UserId},
 };
 use signal_hook::consts::signal::*;
 use signal_hook_tokio::Signals;
@@ -17,15 +17,10 @@ use std::{collections::HashMap, env, process::exit, sync::Arc};
 
 static PREFIX: &str = "!";
 
-struct Debt {
-    user: u64,
-    amount: i32,
-}
-
 struct Accounts;
 
 impl TypeMapKey for Accounts {
-    type Value = Arc<RwLock<HashMap<u64, Vec<Debt>>>>;
+    type Value = Arc<RwLock<HashMap<UserId, i32>>>;
 }
 
 struct Members;
@@ -109,8 +104,9 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                             }
                         }
                     }
+                    msg.reply(ctx, "Added users from group").await?;
                 } else {
-                    msg.reply(ctx, format!("Usage: {}group add [USERS]", PREFIX))
+                    msg.reply(ctx, format!("Usage: {}group add USERS", PREFIX))
                         .await?;
                 }
             }
@@ -135,10 +131,10 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                             }
                             group.remove(i);
                         }
-
                     }
+                    msg.reply(ctx, "Removed users from group").await?;
                 } else {
-                    msg.reply(ctx, format!("Usage: {}group remove [USERS]", PREFIX))
+                    msg.reply(ctx, format!("Usage: {}group remove USERS", PREFIX))
                         .await?;
                 }
             }
@@ -158,7 +154,7 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                 }
             }
             _ => {
-                msg.reply(ctx, format!("Usage: {}group [COMMAND] [USERS]", PREFIX))
+                msg.reply(ctx, format!("Usage: {}group COMMAND", PREFIX))
                     .await?;
             }
         };
@@ -174,12 +170,14 @@ async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         data_read.get::<Accounts>().unwrap().clone()
     };
 
-    let accounts = accounts_lock.read().await.get(&1).map_or(&Vec::<Debt>::new(), |x| x);
+    let accounts = accounts_lock
+        .read()
+        .await;
 
     match args.len() {
-        0 => msg.reply(ctx, "Your balance: ").await?,
+        0 => msg.reply(ctx, format!("Your balance: {}", accounts.get(&msg.author.id).map_or(0, |x| *x))).await?,
         1 => msg.reply(ctx, "Their balance: ").await?,
-        _ => msg.reply(ctx, "Usage: ").await?,
+        _ => msg.reply(ctx, format!("Usage: {}balance [USER]", PREFIX)).await?,
     };
 
     Ok(())
@@ -187,14 +185,28 @@ async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
 #[command]
 async fn pay(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    msg.reply(ctx, "Pay").await?;
+    let accounts_lock = {
+        let data_read = ctx.data.read().await;
+        data_read.get::<Accounts>().unwrap().clone()
+    };
+
+    if args.len() == 0 {
+        msg.reply(ctx, format!("Usage: {}pay amount USER", PREFIX)).await?;
+    }
 
     Ok(())
 }
 
 #[command]
 async fn bill(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    msg.reply(ctx, "Charge").await?;
+    let accounts_lock = {
+        let data_read = ctx.data.read().await;
+        data_read.get::<Accounts>().unwrap().clone()
+    };
+
+    if args.len() == 0 {
+        msg.reply(ctx, format!("Usage: {}bill amount [USERS]", PREFIX)).await?;
+    }
 
     Ok(())
 }
