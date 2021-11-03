@@ -230,15 +230,54 @@ async fn pay(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 }
 
 #[command]
-async fn bill(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    if args.len() != 0 {
-        let accounts_lock = {
-            let data_read = ctx.data.read().await;
-            data_read.get::<Accounts>().unwrap().clone()
-        };
-    } else {
-        msg.reply(ctx, format!("Usage: {}bill amount [USERS]", PREFIX))
-            .await?;
+async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let accounts_lock = {
+        let data_read = ctx.data.read().await;
+        data_read.get::<Accounts>().unwrap().clone()
+    };
+
+    match args.len() {
+        0 => {
+            msg.reply(ctx, format!("Usage: {}bill amount [USERS]", PREFIX))
+                .await?;
+        }
+        1 => {
+            let amount = parse_money(args.current().unwrap()).unwrap_or(0);
+            let group_lock = {
+                let data_read = ctx.data.read().await;
+                data_read.get::<Members>().unwrap().clone()
+            };
+            let group = group_lock.read().await;
+
+            let mut accounts = accounts_lock.write().await;
+            let mut i = 0;
+            for user in group.iter() {
+                let receiver_entry = accounts.entry(UserId(*user)).or_insert(0);
+                *receiver_entry -= amount;
+                i += 1;
+            }
+            {
+                let sender_entry = accounts.entry(msg.author.id).or_insert(0);
+                *sender_entry += amount * i;
+            }
+        }
+        _ => {
+            let amount = parse_money(args.current().unwrap()).unwrap_or(0);
+            args.advance();
+
+            let mut accounts = accounts_lock.write().await;
+            let mut i = 0;
+            for arg in args.iter::<u64>() {
+                let arg = arg.unwrap_or(0);
+                let receiver_entry = accounts.entry(UserId(arg)).or_insert(0);
+                *receiver_entry -= amount;
+                i += 1;
+            }
+            {
+                let sender_entry = accounts.entry(msg.author.id).or_insert(0);
+                *sender_entry += amount * i;
+            }
+        }
     }
 
     Ok(())
