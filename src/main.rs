@@ -68,8 +68,8 @@ impl EventHandler for Handler {
                         .create_option(|option| {
                             option
                                 .name("amount")
-                                .description("Amount in cents")
-                                .kind(ApplicationCommandOptionType::Integer)
+                                .description("Amount in dollars")
+                                .kind(ApplicationCommandOptionType::String)
                                 .required(true)
                         })
                         .create_option(|option| {
@@ -94,8 +94,8 @@ impl EventHandler for Handler {
                         .create_option(|option| {
                             option
                                 .name("amount")
-                                .description("Amount in cents")
-                                .kind(ApplicationCommandOptionType::Integer)
+                                .description("Amount in dollars")
+                                .kind(ApplicationCommandOptionType::String)
                                 .required(true)
                         })
                         .create_option(|option| {

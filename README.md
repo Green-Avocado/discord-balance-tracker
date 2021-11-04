@@ -31,7 +31,7 @@ No parameters
 
 ### `/owe amount description user`
 
-amount:Integer - the amount in cents to owe
+amount:String - the amount in dollars to owe
 
 description:String - description of the transaction
 
@@ -39,7 +39,7 @@ user:User - the user to owe to
 
 ### `/bill amount description [user0 ... user9]`
 
-amount:Integer - the amount in cents to bill to each user
+amount:String - the amount in dollars to owe
 
 description:String - description of the transaction
 

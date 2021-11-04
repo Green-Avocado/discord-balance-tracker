@@ -27,7 +27,7 @@ impl fmt::Display for HandleCommandError {
 impl Error for HandleCommandError {}
 
 #[derive(Debug, Clone)]
-pub struct GetLockError;
+struct GetLockError;
 
 impl fmt::Display for GetLockError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -36,6 +36,17 @@ impl fmt::Display for GetLockError {
 }
 
 impl Error for GetLockError {}
+
+#[derive(Debug, Clone)]
+struct ParseMoneyError;
+
+impl fmt::Display for ParseMoneyError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "could not parse money")
+    }
+}
+
+impl Error for ParseMoneyError {}
 
 pub struct Accounts;
 
@@ -79,8 +90,8 @@ pub async fn owe_handler(
     for option in &command.data.options {
         match option.name.as_ref() {
             "amount" => match &option.resolved {
-                Some(ApplicationCommandInteractionDataOptionValue::Integer(value)) => {
-                    amount = Some(value);
+                Some(ApplicationCommandInteractionDataOptionValue::String(value)) => {
+                    amount = Some(parse_money(value));
                 }
                 _ => return Err(HandleCommandError),
             },
@@ -100,7 +111,7 @@ pub async fn owe_handler(
         }
     }
 
-    if let Some(&amount) = amount {
+    if let Some(Ok(amount)) = amount {
         if let Some(description) = description {
             if let Some(receiver) = user_opt {
                 let accounts = match get_accounts_lock(&ctx).await {
@@ -146,8 +157,8 @@ pub async fn bill_handler(
     for option in &command.data.options {
         match option.name.as_ref() {
             "amount" => match &option.resolved {
-                Some(ApplicationCommandInteractionDataOptionValue::Integer(value)) => {
-                    amount = Some(value);
+                Some(ApplicationCommandInteractionDataOptionValue::String(value)) => {
+                    amount = Some(parse_money(value));
                 }
                 _ => return Err(HandleCommandError),
             },
@@ -166,7 +177,7 @@ pub async fn bill_handler(
         }
     }
 
-    if let Some(&amount) = amount {
+    if let Some(Ok(amount)) = amount {
         if let Some(description) = description {
             let accounts = match get_accounts_lock(&ctx).await {
                 Ok(accounts_lock) => accounts_lock,
@@ -197,7 +208,7 @@ pub async fn bill_handler(
     Err(HandleCommandError)
 }
 
-pub async fn get_accounts_lock(
+async fn get_accounts_lock(
     ctx: &Context,
 ) -> Result<Arc<RwLock<HashMap<UserId, HashMap<UserId, i64>>>>, GetLockError> {
     let accounts_lock = {
@@ -211,7 +222,7 @@ pub async fn get_accounts_lock(
     Ok(accounts_lock)
 }
 
-pub fn format_money(money: i64) -> String {
+fn format_money(money: i64) -> String {
     let mut string;
     if money >= 0 {
         string = format!("${:0>3}", money);
@@ -220,4 +231,36 @@ pub fn format_money(money: i64) -> String {
     }
     string.insert(string.len() - 2, '.');
     string
+}
+
+fn parse_money(mut input: &str) -> Result<i64, ParseMoneyError> {
+    let mut negative = false;
+
+    if input.chars().nth(0).unwrap() == '-' {
+        negative = true;
+        input = &((*input)[1..]);
+    }
+
+    let mut split = (*input).split('.');
+
+    let mut money = match split.next() {
+        Some(dollars) => match dollars.parse::<u32>() {
+            Ok(dollars) => dollars * 100,
+            Err(_e) => return Err(ParseMoneyError),
+        },
+        None => return Err(ParseMoneyError),
+    };
+
+    if let Some(next) = split.next() {
+        match next.parse::<u32>() {
+            Ok(cents) => money += cents,
+            Err(_e) => return Err(ParseMoneyError),
+        };
+    }
+
+    if negative {
+        Ok(-(i64::from(money)))
+    } else {
+        Ok(money.into())
+    }
 }
