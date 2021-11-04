@@ -109,7 +109,7 @@ impl EventHandler for Handler {
                         .create_option(|option| {
                             option
                                 .name("user")
-                                .description("User")
+                                .description("User to owe")
                                 .kind(ApplicationCommandOptionType::User)
                                 .required(true)
                         })
