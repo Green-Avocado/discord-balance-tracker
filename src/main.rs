@@ -46,7 +46,7 @@ impl Error for GetLockError {}
 struct Accounts;
 
 impl TypeMapKey for Accounts {
-    type Value = Arc<RwLock<HashMap<UserId, i64>>>;
+    type Value = Arc<RwLock<HashMap<UserId, HashMap<UserId, i64>>>>;
 }
 
 struct Handler;
@@ -200,15 +200,15 @@ async fn balance_handler(
         Err(_) => return Err(HandleCommandError),
     };
 
-    let balance = format_money(
-        accounts
-            .read()
-            .await
-            .get(&command.user.id)
-            .map_or(0, |x| *x),
-    );
+    let mut balance = 0;
+    let accounts_read = accounts.read().await;
+    if let Some(account) = accounts_read.get(&command.user.id) {
+        for entry in account {
+            balance += entry.1;
+        }
+    }
 
-    Ok(format!("Your balance: {}", balance))
+    Ok(format!("Your balance: {}", format_money(balance)))
 }
 
 async fn owe_handler(
@@ -263,12 +263,13 @@ async fn owe_handler(
                 {
                     let mut accounts = accounts.write().await;
                     {
-                        let receiver_entry = accounts.entry(receiver.id).or_insert(0);
-                        *receiver_entry += amount;
+                        let receiver_entry = accounts.entry(receiver.id).or_insert(HashMap::new());
+                        *receiver_entry.entry(command.user.id).or_insert(0) += amount;
                     }
                     {
-                        let sender_entry = accounts.entry(command.user.id).or_insert(0);
-                        *sender_entry -= amount;
+                        let sender_entry =
+                            accounts.entry(command.user.id).or_insert(HashMap::new());
+                        *sender_entry.entry(receiver.id).or_insert(0) -= amount;
                     }
                 }
 
@@ -334,13 +335,12 @@ async fn bill_handler(
 
             {
                 let mut accounts = accounts.write().await;
-                for user in &users {
-                    let receiver_entry = accounts.entry(user.id).or_insert(0);
-                    *receiver_entry -= amount;
-                }
-                {
-                    let sender_entry = accounts.entry(command.user.id).or_insert(0);
-                    *sender_entry += amount * users.len() as i64;
+                for receiver in &users {
+                    let receiver_entry = accounts.entry(receiver.id).or_insert(HashMap::new());
+                    *receiver_entry.entry(command.user.id).or_insert(0) -= amount;
+
+                    let sender_entry = accounts.entry(command.user.id).or_insert(HashMap::new());
+                    *sender_entry.entry(receiver.id).or_insert(0) += amount;
                 }
             }
 
@@ -358,7 +358,7 @@ async fn bill_handler(
 
 async fn get_accounts_lock(
     ctx: &Context,
-) -> Result<Arc<RwLock<HashMap<UserId, i64>>>, GetLockError> {
+) -> Result<Arc<RwLock<HashMap<UserId, HashMap<UserId, i64>>>>, GetLockError> {
     let accounts_lock = {
         let data_read = ctx.data.read().await;
         match data_read.get::<Accounts>() {
