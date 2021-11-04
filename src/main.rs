@@ -1,6 +1,8 @@
+mod accounts;
 mod command_handlers;
 
-use command_handlers::*;
+use accounts::Accounts;
+use command_handlers::{balance_handler, bill_handler, owe_handler};
 
 use serenity::{
     async_trait,
@@ -55,6 +57,11 @@ impl EventHandler for Handler {
 
     async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
+
+        {
+            let mut data = ctx.data.write().await;
+            data.insert::<Accounts>(Arc::new(RwLock::new(HashMap::new())));
+        }
 
         let commands = ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {
             commands
@@ -158,11 +165,6 @@ async fn main() {
         .application_id(application_id)
         .await
         .expect("Error creating client");
-
-    {
-        let mut data = client.data.write().await;
-        data.insert::<Accounts>(Arc::new(RwLock::new(HashMap::new())));
-    }
 
     if let Err(e) = client.start().await {
         println!("An error occurred while running the client: {:?}", e);
