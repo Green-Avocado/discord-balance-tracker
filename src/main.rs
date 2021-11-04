@@ -49,12 +49,6 @@ impl TypeMapKey for Accounts {
     type Value = Arc<RwLock<HashMap<UserId, i64>>>;
 }
 
-struct Members;
-
-impl TypeMapKey for Members {
-    type Value = Arc<RwLock<Vec<UserId>>>;
-}
-
 struct Handler;
 
 #[async_trait]
@@ -153,10 +147,7 @@ impl EventHandler for Handler {
         })
         .await;
 
-        println!(
-            "I now have the following global slash commands: {:#?}",
-            commands
-        );
+        println!("Loaded {} commands.", commands.unwrap_or(Vec::new()).len());
     }
 }
 
@@ -193,7 +184,6 @@ async fn main() {
     {
         let mut data = client.data.write().await;
         data.insert::<Accounts>(Arc::new(RwLock::new(HashMap::new())));
-        data.insert::<Members>(Arc::new(RwLock::new(Vec::new())));
     }
 
     if let Err(e) = client.start().await {
