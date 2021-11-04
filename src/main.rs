@@ -200,7 +200,8 @@ async fn balance_handler(
         Err(_) => return Err(HandleCommandError),
     };
 
-    let mut response = "Your balance:\n".to_string();
+    let mut response = format!("{}'s balance:\n", command.user.tag());
+
     let accounts_read = accounts.read().await;
     if let Some(account) = accounts_read.get(&command.user.id) {
         for (id, &balance) in account {
@@ -276,7 +277,8 @@ async fn owe_handler(
                 }
 
                 return Ok(format!(
-                    "Owed {} to {} for {}",
+                    "{} owes {} to {} for {}",
+                    command.user.tag(),
                     format_money(amount),
                     receiver.tag(),
                     description
@@ -347,7 +349,8 @@ async fn bill_handler(
             }
 
             return Ok(format!(
-                "Billed {} to {} users for {}",
+                "{} billed {} to {} users for {}",
+                command.user.tag(),
                 format_money(amount),
                 users.len(),
                 description
