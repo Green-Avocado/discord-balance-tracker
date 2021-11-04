@@ -241,36 +241,63 @@ async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
 #[command]
 async fn owe(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    if args.len() == 2 {
-        let accounts_lock = {
-            let data_read = ctx.data.read().await;
-            data_read.get::<Accounts>().unwrap().clone()
-        };
-
-        let amount = parse_money(args.current().unwrap()).unwrap();
-        args.advance();
-        let receiver = parse_mention(args.current().unwrap()).unwrap();
-
-        {
-            let mut accounts = accounts_lock.write().await;
-            {
-                let receiver_entry = accounts.entry(receiver).or_insert(0);
-                *receiver_entry += amount;
-            }
-            {
-                let sender_entry = accounts.entry(msg.author.id).or_insert(0);
-                *sender_entry -= amount;
-            }
-        }
-        msg.reply(
-            ctx,
-            format!("Owe {} to <@{}>", format_money(amount), receiver),
-        )
-        .await?;
-    } else {
+    if args.len() != 2 {
         msg.reply(ctx, format!("Usage: {}owe amount @USER", PREFIX))
             .await?;
+        return Ok(());
     }
+
+    let accounts_lock = {
+        let data_read = ctx.data.read().await;
+        match data_read.get::<Accounts>() {
+            Some(data) => data.clone(),
+            None => {
+                msg.reply(ctx, "Error reading accounts data").await?;
+                return Ok(());
+            }
+        }
+    };
+
+    let amount = match parse_money(args.current().unwrap()) {
+        Ok(money) => {
+            if money < 0 {
+                msg.reply(ctx, "Cannot bill negative amount").await?;
+                return Ok(());
+            } else {
+                money
+            }
+        }
+        Err(_) => {
+            msg.reply(ctx, "Error parsing amount").await?;
+            return Ok(());
+        }
+    };
+    args.advance();
+
+    let receiver = match parse_mention(args.current().unwrap()) {
+        Ok(user_id) => user_id,
+        Err(_) => {
+            msg.reply(ctx, "Error parsing user id").await?;
+            return Ok(());
+        }
+    };
+
+    {
+        let mut accounts = accounts_lock.write().await;
+        {
+            let receiver_entry = accounts.entry(receiver).or_insert(0);
+            *receiver_entry += amount;
+        }
+        {
+            let sender_entry = accounts.entry(msg.author.id).or_insert(0);
+            *sender_entry -= amount;
+        }
+    }
+    msg.reply(
+        ctx,
+        format!("Owed {} to <@{}>", format_money(amount), receiver),
+    )
+    .await?;
 
     Ok(())
 }
