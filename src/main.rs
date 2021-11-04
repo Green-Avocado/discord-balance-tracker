@@ -64,7 +64,7 @@ impl EventHandler for Handler {
 
             let content = match content {
                 Ok(content) => content,
-                Err(_e) => "Error getting content".to_string(),
+                Err(_e) => "Error handling command".to_string(),
             };
 
             if let Err(e) = command
@@ -216,6 +216,7 @@ async fn owe_handler(
     command: &ApplicationCommandInteraction,
 ) -> Result<String, HandleCommandError> {
     let mut amount = None;
+    let mut description = None;
     let mut user_opt = None;
 
     for option in &command.data.options {
@@ -224,6 +225,15 @@ async fn owe_handler(
                 Some(value) => match value {
                     ApplicationCommandInteractionDataOptionValue::Integer(value) => {
                         amount = Some(*value);
+                    }
+                    _ => return Err(HandleCommandError),
+                },
+                None => return Err(HandleCommandError),
+            },
+            "description" => match &option.resolved {
+                Some(value) => match value {
+                    ApplicationCommandInteractionDataOptionValue::String(value) => {
+                        description = Some(value);
                     }
                     _ => return Err(HandleCommandError),
                 },
@@ -243,25 +253,32 @@ async fn owe_handler(
     }
 
     if let Some(amount) = amount {
-        if let Some(receiver) = user_opt {
-            let accounts = match get_accounts_lock(&ctx).await {
-                Ok(accounts_lock) => accounts_lock,
-                Err(_) => return Err(HandleCommandError),
-            };
+        if let Some(description) = description {
+            if let Some(receiver) = user_opt {
+                let accounts = match get_accounts_lock(&ctx).await {
+                    Ok(accounts_lock) => accounts_lock,
+                    Err(_) => return Err(HandleCommandError),
+                };
 
-            {
-                let mut accounts = accounts.write().await;
                 {
-                    let receiver_entry = accounts.entry(receiver.id).or_insert(0);
-                    *receiver_entry += amount;
+                    let mut accounts = accounts.write().await;
+                    {
+                        let receiver_entry = accounts.entry(receiver.id).or_insert(0);
+                        *receiver_entry += amount;
+                    }
+                    {
+                        let sender_entry = accounts.entry(command.user.id).or_insert(0);
+                        *sender_entry -= amount;
+                    }
                 }
-                {
-                    let sender_entry = accounts.entry(command.user.id).or_insert(0);
-                    *sender_entry -= amount;
-                }
+
+                return Ok(format!(
+                    "Owed {} to {} for {}",
+                    amount,
+                    receiver.tag(),
+                    description
+                ));
             }
-
-            return Ok(format!("Owed {} to {}", amount, receiver.tag()));
         }
     }
 
