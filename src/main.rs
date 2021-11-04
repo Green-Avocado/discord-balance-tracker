@@ -19,6 +19,8 @@ use signal_hook_tokio::Signals;
 use tokio::sync::RwLock;
 use typemap_rev::TypeMapKey;
 
+use dotenv::dotenv;
+
 use std::{collections::HashMap, error::Error, fmt, fmt::Write, sync::Arc};
 
 #[derive(Debug, Clone)]
@@ -165,6 +167,8 @@ async fn handle_signals(signals: Signals) {
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
+
     let signals = match Signals::new(&[SIGTERM, SIGINT]) {
         Ok(signals) => signals,
         Err(_e) => std::process::exit(1),
