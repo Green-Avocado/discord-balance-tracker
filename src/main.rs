@@ -19,13 +19,13 @@ use signal_hook_tokio::Signals;
 use tokio::sync::RwLock;
 use typemap_rev::TypeMapKey;
 
-use std::{collections::HashMap, error::Error, sync::Arc};
+use std::{collections::HashMap, error::Error, fmt, fmt::Write, sync::Arc};
 
 #[derive(Debug, Clone)]
 struct HandleCommandError;
 
-impl std::fmt::Display for HandleCommandError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for HandleCommandError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "could not get content")
     }
 }
@@ -35,8 +35,8 @@ impl Error for HandleCommandError {}
 #[derive(Debug, Clone)]
 struct GetLockError;
 
-impl std::fmt::Display for GetLockError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for GetLockError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "could not get lock")
     }
 }
@@ -200,15 +200,17 @@ async fn balance_handler(
         Err(_) => return Err(HandleCommandError),
     };
 
-    let mut balance = 0;
+    let mut response = "Your balance:\n".to_string();
     let accounts_read = accounts.read().await;
     if let Some(account) = accounts_read.get(&command.user.id) {
-        for entry in account {
-            balance += entry.1;
+        for (id, &balance) in account {
+            if let Ok(user) = id.to_user(ctx).await {
+                write!(response, "{:<32}{}\n", user.tag(), format_money(balance)).unwrap();
+            }
         }
     }
 
-    Ok(format!("Your balance: {}", format_money(balance)))
+    Ok(response)
 }
 
 async fn owe_handler(
@@ -224,7 +226,7 @@ async fn owe_handler(
             "amount" => match &option.resolved {
                 Some(value) => match value {
                     ApplicationCommandInteractionDataOptionValue::Integer(value) => {
-                        amount = Some(*value);
+                        amount = Some(value);
                     }
                     _ => return Err(HandleCommandError),
                 },
@@ -252,7 +254,7 @@ async fn owe_handler(
         }
     }
 
-    if let Some(amount) = amount {
+    if let Some(&amount) = amount {
         if let Some(description) = description {
             if let Some(receiver) = user_opt {
                 let accounts = match get_accounts_lock(&ctx).await {
@@ -275,7 +277,7 @@ async fn owe_handler(
 
                 return Ok(format!(
                     "Owed {} to {} for {}",
-                    amount,
+                    format_money(amount),
                     receiver.tag(),
                     description
                 ));
@@ -299,7 +301,7 @@ async fn bill_handler(
             "amount" => match &option.resolved {
                 Some(value) => match value {
                     ApplicationCommandInteractionDataOptionValue::Integer(value) => {
-                        amount = Some(*value)
+                        amount = Some(value)
                     }
                     _ => return Err(HandleCommandError),
                 },
@@ -326,7 +328,7 @@ async fn bill_handler(
         }
     }
 
-    if let Some(amount) = amount {
+    if let Some(&amount) = amount {
         if let Some(description) = description {
             let accounts = match get_accounts_lock(&ctx).await {
                 Ok(accounts_lock) => accounts_lock,
@@ -346,7 +348,7 @@ async fn bill_handler(
 
             return Ok(format!(
                 "Billed {} to {} users for {}",
-                amount,
+                format_money(amount),
                 users.len(),
                 description
             ));
