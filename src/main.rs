@@ -75,7 +75,7 @@ impl Error for ParseMentionError {}
 struct Accounts;
 
 impl TypeMapKey for Accounts {
-    type Value = Arc<RwLock<HashMap<UserId, i32>>>;
+    type Value = Arc<RwLock<HashMap<UserId, i64>>>;
 }
 
 struct Members;
@@ -538,12 +538,18 @@ async fn balance_handler(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) -> Result<String, HandleCommandError> {
-    let accounts = match get_accounts(&ctx).await {
-        Ok(accounts) => accounts,
+    let accounts = match get_accounts_lock(&ctx).await {
+        Ok(accounts_lock) => accounts_lock,
         Err(_) => return Err(HandleCommandError),
     };
 
-    let balance = format_money(accounts.get(&command.user.id).map_or(0, |x| *x));
+    let balance = format_money(
+        accounts
+            .read()
+            .await
+            .get(&command.user.id)
+            .map_or(0, |x| *x),
+    );
 
     Ok(format!("Your balance: {}", balance))
 }
@@ -580,9 +586,25 @@ async fn owe_handler(
     }
 
     if let Some(amount) = amount {
-        if let Some(user) = user_opt {
-            todo!();
-            return Ok(format!("Owed {} to {}", amount, user.tag()));
+        if let Some(receiver) = user_opt {
+            let accounts = match get_accounts_lock(&ctx).await {
+                Ok(accounts_lock) => accounts_lock,
+                Err(_) => return Err(HandleCommandError),
+            };
+
+            {
+                let mut accounts = accounts.write().await;
+                {
+                    let receiver_entry = accounts.entry(receiver.id).or_insert(0);
+                    *receiver_entry += amount;
+                }
+                {
+                    let sender_entry = accounts.entry(command.user.id).or_insert(0);
+                    *sender_entry -= amount;
+                }
+            }
+
+            return Ok(format!("Owed {} to {}", amount, receiver.tag()));
         }
     }
 
@@ -620,7 +642,7 @@ async fn bill_handler(
             _ => match &option.resolved {
                 Some(value) => match value {
                     ApplicationCommandInteractionDataOptionValue::User(user, _member) => {
-                        users.push(user.id);
+                        users.push(user);
                     }
                     _ => return Err(HandleCommandError),
                 },
@@ -631,6 +653,23 @@ async fn bill_handler(
 
     if let Some(amount) = amount {
         if let Some(description) = description {
+            let accounts = match get_accounts_lock(&ctx).await {
+                Ok(accounts_lock) => accounts_lock,
+                Err(_) => return Err(HandleCommandError),
+            };
+
+            {
+                let mut accounts = accounts.write().await;
+                for user in &users {
+                    let receiver_entry = accounts.entry(user.id).or_insert(0);
+                    *receiver_entry -= amount;
+                }
+                {
+                    let sender_entry = accounts.entry(command.user.id).or_insert(0);
+                    *sender_entry += amount * users.len() as i64;
+                }
+            }
+
             return Ok(format!(
                 "Billed {} to {} users for {}",
                 amount,
@@ -643,19 +682,21 @@ async fn bill_handler(
     Err(HandleCommandError)
 }
 
-async fn get_accounts(ctx: &Context) -> Result<HashMap<UserId, i32>, GetLockError> {
-    let accounts = {
+async fn get_accounts_lock(
+    ctx: &Context,
+) -> Result<Arc<RwLock<HashMap<UserId, i64>>>, GetLockError> {
+    let accounts_lock = {
         let data_read = ctx.data.read().await;
         match data_read.get::<Accounts>() {
-            Some(data) => data.read().await.clone(),
+            Some(data) => data.clone(),
             None => return Err(GetLockError),
         }
     };
 
-    Ok(accounts)
+    Ok(accounts_lock)
 }
 
-fn format_money(money: i32) -> String {
+fn format_money(money: i64) -> String {
     let mut string;
     if money >= 0 {
         string = format!("{:0>3}", money);
@@ -666,7 +707,7 @@ fn format_money(money: i32) -> String {
     string
 }
 
-fn parse_money(mut input: &str) -> Result<i32, ParseMoneyError> {
+fn parse_money(mut input: &str) -> Result<i64, ParseMoneyError> {
     let mut negative = false;
 
     if input.chars().nth(0).unwrap() == '-' {
@@ -677,7 +718,7 @@ fn parse_money(mut input: &str) -> Result<i32, ParseMoneyError> {
     let mut split = (*input).split('.');
 
     let mut money = match split.next() {
-        Some(dollars) => match dollars.parse::<u16>() {
+        Some(dollars) => match dollars.parse::<u32>() {
             Ok(dollars) => dollars * 100,
             Err(_e) => return Err(ParseMoneyError),
         },
@@ -685,14 +726,14 @@ fn parse_money(mut input: &str) -> Result<i32, ParseMoneyError> {
     };
 
     if let Some(next) = split.next() {
-        match next.parse::<u16>() {
+        match next.parse::<u32>() {
             Ok(cents) => money += cents,
             Err(_e) => return Err(ParseMoneyError),
         };
     }
 
     if negative {
-        Ok(-(i32::from(money)))
+        Ok(-(i64::from(money)))
     } else {
         Ok(money.into())
     }
