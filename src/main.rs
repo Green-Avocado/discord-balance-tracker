@@ -279,67 +279,67 @@ async fn owe(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let accounts_lock = {
         let data_read = ctx.data.read().await;
-        data_read.get::<Accounts>().unwrap().clone()
+        match data_read.get::<Accounts>() {
+            Some(data) => data.clone(),
+            None => {
+                msg.reply(ctx, "Error reading accounts data").await?;
+                return Ok(());
+            }
+        }
     };
 
-    match args.len() {
-        0 => {
+    let amount = match args.current() {
+        Some(str) => match parse_money(str) {
+            Ok(money) => money,
+            Err(_) => {
+                msg.reply(ctx, "Error parsing amount").await?;
+                return Ok(());
+            }
+        },
+        None => {
             msg.reply(ctx, format!("Usage: {}bill amount [@USERS]", PREFIX))
                 .await?;
+            return Ok(());
         }
-        1 => {
-            let amount = parse_money(args.current().unwrap()).unwrap_or(0);
+    };
+    args.advance();
+
+    let user_list = match args.remaining() {
+        0 => {
             let group_lock = {
                 let data_read = ctx.data.read().await;
-                data_read.get::<Members>().unwrap().clone()
-            };
-            let group = group_lock.read().await;
-
-            let mut accounts = accounts_lock.write().await;
-            let mut i = 0;
-            for user in group.iter() {
-                let receiver_entry = accounts.entry(*user).or_insert(0);
-                *receiver_entry -= amount;
-                i += 1;
-            }
-            {
-                let sender_entry = accounts.entry(msg.author.id).or_insert(0);
-                *sender_entry += amount * i;
-            }
-            msg.reply(ctx, "Billed").await?;
-        }
-        _ => {
-            let amount = match parse_money(args.current().unwrap()) {
-                Ok(amount) => amount,
-                Err(_) => {
-                    msg.reply(ctx, "Error parsing amount").await?;
-                    return Ok(());
+                match data_read.get::<Members>() {
+                    Some(data) => data.clone(),
+                    None => {
+                        msg.reply(ctx, "Error reading group data").await?;
+                        return Ok(());
+                    }
                 }
             };
-            args.advance();
-
-            let mut accounts = accounts_lock.write().await;
-            let mut i = 0;
-            let mention_list = match parse_mention_list(&mut args) {
-                Ok(list) => list,
-                Err(_) => {
-                    msg.reply(ctx, "Error parsing user ids").await?;
-                    return Ok(());
-                }
-            };
-
-            for user_id in mention_list {
-                let receiver_entry = accounts.entry(user_id).or_insert(0);
-                *receiver_entry -= amount;
-                i += 1;
-            }
-            {
-                let sender_entry = accounts.entry(msg.author.id).or_insert(0);
-                *sender_entry += amount * i;
-            }
-            msg.reply(ctx, "Billed").await?;
+            let vec = group_lock.read().await.clone();
+            vec
         }
+        _ => match parse_mention_list(&mut args) {
+            Ok(list) => list,
+            Err(_) => {
+                msg.reply(ctx, "Error parsing user ids").await?;
+                return Ok(());
+            }
+        },
+    };
+
+    let mut accounts = accounts_lock.write().await;
+    let mut i = 0;
+    for user in user_list {
+        let receiver_entry = accounts.entry(user).or_insert(0);
+        *receiver_entry -= amount;
+        i += 1;
     }
+    {
+        let sender_entry = accounts.entry(msg.author.id).or_insert(0);
+        *sender_entry += amount * i;
+    }
+    msg.reply(ctx, "Billed").await?;
 
     Ok(())
 }
