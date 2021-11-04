@@ -212,27 +212,41 @@ async fn group(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 async fn balance(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let accounts_lock = {
         let data_read = ctx.data.read().await;
-        data_read.get::<Accounts>().unwrap().clone()
+        match data_read.get::<Accounts>() {
+            Some(data) => data.clone(),
+            None => {
+                msg.reply(ctx, "Error reading accounts data").await?;
+                return Ok(());
+            }
+        }
     };
 
     let accounts = accounts_lock.read().await;
 
-    match args.len() {
-        0 => {
-            let balance = accounts.get(&msg.author.id).map_or(0, |x| *x);
-            msg.reply(ctx, format!("Your balance: {}", format_money(balance)))
-                .await?
-        }
-        1 => {
+    if args.len() > 1 {
+        msg.reply(ctx, format!("Usage: {}balance [@USER]", PREFIX))
+            .await?;
+        return Ok(());
+    }
+
+    match args.current() {
+        Some(id) => {
             let balance = accounts
-                .get(&parse_mention(args.current().unwrap()).unwrap())
+                .get(&match parse_mention(id) {
+                    Ok(user_id) => user_id,
+                    Err(_) => {
+                        msg.reply(ctx, "Error parsing user id").await?;
+                        return Ok(());
+                    }
+                })
                 .map_or(0, |x| *x);
             msg.reply(ctx, format!("Their balance: {}", format_money(balance)))
-                .await?
+                .await?;
         }
-        _ => {
-            msg.reply(ctx, format!("Usage: {}balance [@USER]", PREFIX))
-                .await?
+        None => {
+            let balance = accounts.get(&msg.author.id).map_or(0, |x| *x);
+            msg.reply(ctx, format!("Your balance: {}", format_money(balance)))
+                .await?;
         }
     };
 
