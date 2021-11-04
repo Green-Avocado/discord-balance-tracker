@@ -290,7 +290,14 @@ async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
     let amount = match args.current() {
         Some(str) => match parse_money(str) {
-            Ok(money) => money,
+            Ok(money) => {
+                if money < 0 {
+                    msg.reply(ctx, "Cannot bill negative amount").await?;
+                    return Ok(());
+                } else {
+                    money
+                }
+            }
             Err(_) => {
                 msg.reply(ctx, "Error parsing amount").await?;
                 return Ok(());
