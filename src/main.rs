@@ -6,22 +6,44 @@ use serenity::{
         Args, CommandResult, StandardFramework,
     },
     futures::StreamExt,
-    model::{channel::Message, id::UserId, prelude::Ready},
+    model::{
+        channel::Message,
+        gateway::Ready,
+        id::UserId,
+        interactions::{
+            application_command::{
+                ApplicationCommand, ApplicationCommandInteractionDataOptionValue,
+                ApplicationCommandOptionType,
+            },
+            Interaction, InteractionResponseType,
+        },
+    },
 };
 use signal_hook::consts::signal::*;
 use signal_hook_tokio::Signals;
 use tokio::sync::RwLock;
 use typemap_rev::TypeMapKey;
 
-use std::{collections::HashMap, error::Error, fmt, process::exit, sync::Arc};
+use std::{collections::HashMap, error::Error, sync::Arc};
 
 static PREFIX: &str = "!";
 
 #[derive(Debug, Clone)]
+struct GetLockError;
+
+impl std::fmt::Display for GetLockError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "could not get lock")
+    }
+}
+
+impl Error for GetLockError {}
+
+#[derive(Debug, Clone)]
 struct ParseMoneyError;
 
-impl fmt::Display for ParseMoneyError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Display for ParseMoneyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "could not parse money")
     }
 }
@@ -31,8 +53,8 @@ impl Error for ParseMoneyError {}
 #[derive(Debug, Clone)]
 struct ParseMentionError;
 
-impl fmt::Display for ParseMentionError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Display for ParseMentionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "could not parse mention")
     }
 }
@@ -59,8 +81,183 @@ struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn ready(&self, _: Context, ready: Ready) {
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        if let Interaction::ApplicationCommand(command) = interaction {
+            let content = match command.data.name.as_str() {
+                "balance" => {
+                    let accounts = match get_accounts(&ctx).await {
+                        Ok(accounts) => accounts,
+                        Err(_) => return,
+                    };
+
+                    let balance = format_money(accounts.get(&command.user.id).map_or(0, |x| *x));
+
+                    format!("Your balance: {}", balance)
+                }
+                "owe" => {
+                    let mut amount = 0;
+                    let mut user_id = UserId(0);
+
+                    for option in &command.data.options {
+                        match option.name.as_ref() {
+                            "amount" => match &option.resolved {
+                                Some(value) => match value {
+                                    ApplicationCommandInteractionDataOptionValue::Integer(
+                                        value,
+                                    ) => amount = *value,
+                                    _ => return,
+                                },
+                                None => return,
+                            },
+                            "user" => match &option.resolved {
+                                Some(value) => match value {
+                                    ApplicationCommandInteractionDataOptionValue::User(
+                                        user,
+                                        _member,
+                                    ) => {
+                                        user_id = user.id;
+                                    }
+                                    _ => return,
+                                },
+                                None => return,
+                            },
+                            _ => return,
+                        }
+                    }
+
+                    todo!();
+
+                    format!("Owed {} to <@{}>", amount, user_id)
+                }
+                "bill" => {
+                    let mut n_users = 0;
+                    let mut amount = 0;
+                    let mut description = "";
+
+                    for option in &command.data.options {
+                        match option.name.as_ref() {
+                            "amount" => match &option.resolved {
+                                Some(value) => match value {
+                                    ApplicationCommandInteractionDataOptionValue::Integer(
+                                        value,
+                                    ) => amount = *value,
+                                    _ => return,
+                                },
+                                None => return,
+                            },
+                            "description" => match &option.resolved {
+                                Some(value) => match value {
+                                    ApplicationCommandInteractionDataOptionValue::String(value) => {
+                                        description = value;
+                                    }
+                                    _ => return,
+                                },
+                                None => return,
+                            },
+                            _ => match &option.resolved {
+                                Some(value) => match value {
+                                    ApplicationCommandInteractionDataOptionValue::User(
+                                        user,
+                                        _member,
+                                    ) => {
+                                        n_users += 1;
+                                        todo!();
+                                    }
+                                    _ => return,
+                                },
+                                None => {}
+                            },
+                        }
+                    }
+                    format!("Billed {} to {} users for {}", amount, n_users, description)
+                }
+                _ => "not implemented".to_string(),
+            };
+
+            if let Err(e) = command
+                .create_interaction_response(&ctx.http, |response| {
+                    response
+                        .kind(InteractionResponseType::ChannelMessageWithSource)
+                        .interaction_response_data(|message| message.content(content))
+                })
+                .await
+            {
+                println!("Cannot respond to slash command: {}", e);
+            }
+        }
+    }
+
+    async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
+
+        let commands = ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {
+            commands
+                .create_application_command(|command| {
+                    command.name("balance").description("Get balance")
+                })
+                .create_application_command(|command| {
+                    command
+                        .name("owe")
+                        .description("Owe a user")
+                        .create_option(|option| {
+                            option
+                                .name("user")
+                                .description("User")
+                                .kind(ApplicationCommandOptionType::User)
+                                .required(true)
+                        })
+                        .create_option(|option| {
+                            option
+                                .name("amount")
+                                .description("Amount")
+                                .kind(ApplicationCommandOptionType::Integer)
+                                .required(true)
+                        })
+                        .create_option(|option| {
+                            option
+                                .name("description")
+                                .description("Transaction description")
+                                .kind(ApplicationCommandOptionType::String)
+                                .required(true)
+                        })
+                })
+                .create_application_command(|command| {
+                    let mut command = command
+                        .name("bill")
+                        .description("Bill user(s) for transaction")
+                        .create_option(|option| {
+                            option
+                                .name("amount")
+                                .description("Amount")
+                                .kind(ApplicationCommandOptionType::Integer)
+                                .required(true)
+                        })
+                        .create_option(|option| {
+                            option
+                                .name("description")
+                                .description("Transaction description")
+                                .kind(ApplicationCommandOptionType::String)
+                                .required(true)
+                        });
+
+                    for i in 0..10 {
+                        command = command.create_option(|option| {
+                            option
+                                .name(format!("user{}", i))
+                                .description("User to bill")
+                                .kind(ApplicationCommandOptionType::User)
+                                .required(false)
+                        })
+                    }
+                    command
+                })
+        })
+        .await;
+
+        println!(
+            "I now have the following global slash commands: {:#?}",
+            commands
+        );
     }
 }
 
@@ -69,7 +266,7 @@ async fn handle_signals(signals: Signals) {
     while let Some(signal) = signals.next().await {
         match signal {
             SIGTERM | SIGINT => {
-                exit(0);
+                std::process::exit(0);
             }
             _ => unreachable!(),
         }
@@ -86,8 +283,15 @@ async fn main() {
         .group(&GENERAL_GROUP);
 
     let token = std::env::var("DISCORD_TOKEN").expect("token");
+
+    let application_id: u64 = std::env::var("APPLICATION_ID")
+        .expect("Expected an application id in the environment")
+        .parse()
+        .expect("application id is not a valid id");
+
     let mut client = Client::builder(token)
         .event_handler(Handler)
+        .application_id(application_id)
         .framework(framework)
         .await
         .expect("Error creating client");
@@ -398,6 +602,18 @@ async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     Ok(())
 }
 
+async fn get_accounts(ctx: &Context) -> Result<HashMap<UserId, i32>, GetLockError> {
+    let accounts = {
+        let data_read = ctx.data.read().await;
+        match data_read.get::<Accounts>() {
+            Some(data) => data.read().await.clone(),
+            None => return Err(GetLockError),
+        }
+    };
+
+    Ok(accounts)
+}
+
 fn format_money(money: i32) -> String {
     let mut string;
     if money >= 0 {
@@ -422,7 +638,7 @@ fn parse_money(mut input: &str) -> Result<i32, ParseMoneyError> {
     let mut money = match split.next() {
         Some(dollars) => match dollars.parse::<u16>() {
             Ok(dollars) => dollars * 100,
-            Err(_) => return Err(ParseMoneyError),
+            Err(_e) => return Err(ParseMoneyError),
         },
         None => return Err(ParseMoneyError),
     };
@@ -430,7 +646,7 @@ fn parse_money(mut input: &str) -> Result<i32, ParseMoneyError> {
     if let Some(next) = split.next() {
         match next.parse::<u16>() {
             Ok(cents) => money += cents,
-            Err(_) => return Err(ParseMoneyError),
+            Err(_e) => return Err(ParseMoneyError),
         };
     }
 
@@ -448,7 +664,7 @@ fn parse_mention_list(inputs: &mut Args) -> Result<Vec<UserId>, ParseMentionErro
         let user_id = match inputs.current() {
             Some(id) => match parse_mention(id) {
                 Ok(user_id) => user_id,
-                Err(_) => return Err(ParseMentionError),
+                Err(_e) => return Err(ParseMentionError),
             },
             None => break,
         };
@@ -466,7 +682,7 @@ fn parse_mention(input: &str) -> Result<UserId, ParseMentionError> {
         if let Some(s) = s.strip_suffix(">") {
             match s.parse::<u64>() {
                 Ok(id) => return Ok(UserId(id)),
-                Err(_) => {}
+                Err(_e) => {}
             };
         }
     }
