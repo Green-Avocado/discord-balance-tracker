@@ -12,8 +12,8 @@ use serenity::{
         id::UserId,
         interactions::{
             application_command::{
-                ApplicationCommand, ApplicationCommandInteractionDataOptionValue,
-                ApplicationCommandOptionType,
+                ApplicationCommand, ApplicationCommandInteraction,
+                ApplicationCommandInteractionDataOptionValue, ApplicationCommandOptionType,
             },
             Interaction, InteractionResponseType,
         },
@@ -27,6 +27,17 @@ use typemap_rev::TypeMapKey;
 use std::{collections::HashMap, error::Error, sync::Arc};
 
 static PREFIX: &str = "!";
+
+#[derive(Debug, Clone)]
+struct GetContentError;
+
+impl std::fmt::Display for GetContentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "could not get content")
+    }
+}
+
+impl Error for GetContentError {}
 
 #[derive(Debug, Clone)]
 struct GetLockError;
@@ -83,95 +94,9 @@ struct Handler;
 impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
-            let content = match command.data.name.as_str() {
-                "balance" => {
-                    let accounts = match get_accounts(&ctx).await {
-                        Ok(accounts) => accounts,
-                        Err(_) => return,
-                    };
-
-                    let balance = format_money(accounts.get(&command.user.id).map_or(0, |x| *x));
-
-                    format!("Your balance: {}", balance)
-                }
-                "owe" => {
-                    let mut amount = 0;
-                    let mut user_id = UserId(0);
-
-                    for option in &command.data.options {
-                        match option.name.as_ref() {
-                            "amount" => match &option.resolved {
-                                Some(value) => match value {
-                                    ApplicationCommandInteractionDataOptionValue::Integer(
-                                        value,
-                                    ) => amount = *value,
-                                    _ => return,
-                                },
-                                None => return,
-                            },
-                            "user" => match &option.resolved {
-                                Some(value) => match value {
-                                    ApplicationCommandInteractionDataOptionValue::User(
-                                        user,
-                                        _member,
-                                    ) => {
-                                        user_id = user.id;
-                                    }
-                                    _ => return,
-                                },
-                                None => return,
-                            },
-                            _ => return,
-                        }
-                    }
-
-                    todo!();
-
-                    format!("Owed {} to <@{}>", amount, user_id)
-                }
-                "bill" => {
-                    let mut n_users = 0;
-                    let mut amount = 0;
-                    let mut description = "";
-
-                    for option in &command.data.options {
-                        match option.name.as_ref() {
-                            "amount" => match &option.resolved {
-                                Some(value) => match value {
-                                    ApplicationCommandInteractionDataOptionValue::Integer(
-                                        value,
-                                    ) => amount = *value,
-                                    _ => return,
-                                },
-                                None => return,
-                            },
-                            "description" => match &option.resolved {
-                                Some(value) => match value {
-                                    ApplicationCommandInteractionDataOptionValue::String(value) => {
-                                        description = value;
-                                    }
-                                    _ => return,
-                                },
-                                None => return,
-                            },
-                            _ => match &option.resolved {
-                                Some(value) => match value {
-                                    ApplicationCommandInteractionDataOptionValue::User(
-                                        user,
-                                        _member,
-                                    ) => {
-                                        n_users += 1;
-                                        todo!();
-                                    }
-                                    _ => return,
-                                },
-                                None => {}
-                            },
-                        }
-                    }
-                    format!("Billed {} to {} users for {}", amount, n_users, description)
-                }
-                _ => "not implemented".to_string(),
+            let content = match get_content_from_command(&ctx, &command).await {
+                Ok(content) => content,
+                Err(_e) => "Error getting content".to_string(),
             };
 
             if let Err(e) = command
@@ -600,6 +525,112 @@ async fn bill(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     msg.reply(ctx, "Billed").await?;
 
     Ok(())
+}
+
+async fn get_content_from_command(
+    ctx: &Context,
+    command: &ApplicationCommandInteraction,
+) -> Result<String, GetContentError> {
+    match command.data.name.as_str() {
+        "balance" => {
+            let accounts = match get_accounts(&ctx).await {
+                Ok(accounts) => accounts,
+                Err(_) => return Err(GetContentError),
+            };
+
+            let balance = format_money(accounts.get(&command.user.id).map_or(0, |x| *x));
+
+            Ok(format!("Your balance: {}", balance))
+        }
+        "owe" => {
+            let mut amount = None;
+            let mut user_opt = None;
+
+            for option in &command.data.options {
+                match option.name.as_ref() {
+                    "amount" => match &option.resolved {
+                        Some(value) => match value {
+                            ApplicationCommandInteractionDataOptionValue::Integer(value) => {
+                                amount = Some(*value);
+                            }
+                            _ => return Err(GetContentError),
+                        },
+                        None => return Err(GetContentError),
+                    },
+                    "user" => match &option.resolved {
+                        Some(value) => match value {
+                            ApplicationCommandInteractionDataOptionValue::User(user, _member) => {
+                                user_opt = Some(user);
+                            }
+                            _ => return Err(GetContentError),
+                        },
+                        None => return Err(GetContentError),
+                    },
+                    _ => return Err(GetContentError),
+                }
+            }
+
+            if let Some(amount) = amount {
+                if let Some(user) = user_opt {
+                    todo!();
+                    return Ok(format!("Owed {} to {}", amount, user.tag()));
+                }
+            }
+
+            Err(GetContentError)
+        }
+        "bill" => {
+            let mut amount = None;
+            let mut description = None;
+            let mut users = Vec::new();
+
+            for option in &command.data.options {
+                match option.name.as_ref() {
+                    "amount" => match &option.resolved {
+                        Some(value) => match value {
+                            ApplicationCommandInteractionDataOptionValue::Integer(value) => {
+                                amount = Some(*value)
+                            }
+                            _ => return Err(GetContentError),
+                        },
+                        None => return Err(GetContentError),
+                    },
+                    "description" => match &option.resolved {
+                        Some(value) => match value {
+                            ApplicationCommandInteractionDataOptionValue::String(value) => {
+                                description = Some(value);
+                            }
+                            _ => return Err(GetContentError),
+                        },
+                        None => return Err(GetContentError),
+                    },
+                    _ => match &option.resolved {
+                        Some(value) => match value {
+                            ApplicationCommandInteractionDataOptionValue::User(user, _member) => {
+                                users.push(user.id);
+                            }
+                            _ => return Err(GetContentError),
+                        },
+                        None => {}
+                    },
+                }
+            }
+
+            if let Some(amount) = amount {
+                if let Some(description) = description {
+                    return Ok(format!(
+                        "Billed {} to {} users for {}",
+                        amount,
+                        users.len(),
+                        description
+                    ));
+                }
+            }
+
+            Err(GetContentError)
+        }
+        _ => Ok("not implemented".to_string()),
+    }
 }
 
 async fn get_accounts(ctx: &Context) -> Result<HashMap<UserId, i32>, GetLockError> {
