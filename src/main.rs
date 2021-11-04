@@ -98,8 +98,8 @@ async fn main() {
         data.insert::<Members>(Arc::new(RwLock::new(Vec::new())));
     }
 
-    if let Err(why) = client.start().await {
-        println!("An error occurred while running the client: {:?}", why);
+    if let Err(e) = client.start().await {
+        println!("An error occurred while running the client: {:?}", e);
     }
 }
 
@@ -272,28 +272,34 @@ async fn owe(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
         }
     };
 
-    let amount = match parse_money(args.current().unwrap()) {
-        Ok(money) => {
-            if money < 0 {
-                msg.reply(ctx, "Cannot bill negative amount").await?;
-                return Ok(());
-            } else {
-                money
+    let amount = match args.current() {
+        Some(num) => match parse_money(num) {
+            Ok(money) => {
+                if money < 0 {
+                    msg.reply(ctx, "Cannot bill negative amount").await?;
+                    return Ok(());
+                } else {
+                    money
+                }
             }
-        }
-        Err(_) => {
-            msg.reply(ctx, "Error parsing amount").await?;
-            return Ok(());
-        }
+            Err(_) => {
+                msg.reply(ctx, "Error parsing amount").await?;
+                return Ok(());
+            }
+        },
+        None => unreachable!(),
     };
     args.advance();
 
-    let receiver = match parse_mention(args.current().unwrap()) {
-        Ok(user_id) => user_id,
-        Err(_) => {
-            msg.reply(ctx, "Error parsing user id").await?;
-            return Ok(());
-        }
+    let receiver = match args.current() {
+        Some(id) => match parse_mention(id) {
+            Ok(user_id) => user_id,
+            Err(_) => {
+                msg.reply(ctx, "Error parsing user id").await?;
+                return Ok(());
+            }
+        },
+        None => unreachable!(),
     };
 
     {
