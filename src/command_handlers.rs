@@ -69,8 +69,7 @@ pub async fn balance_handler(
     if let Some(account) = accounts_read.get(&command.user.id) {
         for (id, &balance) in account {
             if let Ok(user) = id.to_user(ctx).await {
-                if let Err(_e) =
-                    write!(response, "`{:<32}{}`\n", user.tag(), format_money(balance))
+                if let Err(_e) = write!(response, "`{:<32}{:>16}`\n", user.tag(), format_money(balance))
                 {
                     return Err(HandleCommandError);
                 }
