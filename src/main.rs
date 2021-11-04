@@ -94,13 +94,6 @@ impl EventHandler for Handler {
                         .description("Owe a user")
                         .create_option(|option| {
                             option
-                                .name("user")
-                                .description("User")
-                                .kind(ApplicationCommandOptionType::User)
-                                .required(true)
-                        })
-                        .create_option(|option| {
-                            option
                                 .name("amount")
                                 .description("Amount in cents")
                                 .kind(ApplicationCommandOptionType::Integer)
@@ -111,6 +104,13 @@ impl EventHandler for Handler {
                                 .name("description")
                                 .description("Transaction description")
                                 .kind(ApplicationCommandOptionType::String)
+                                .required(true)
+                        })
+                        .create_option(|option| {
+                            option
+                                .name("user")
+                                .description("User")
+                                .kind(ApplicationCommandOptionType::User)
                                 .required(true)
                         })
                 })
