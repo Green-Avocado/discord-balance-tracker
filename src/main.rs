@@ -225,31 +225,22 @@ async fn owe_handler(
     for option in &command.data.options {
         match option.name.as_ref() {
             "amount" => match &option.resolved {
-                Some(value) => match value {
-                    ApplicationCommandInteractionDataOptionValue::Integer(value) => {
-                        amount = Some(value);
-                    }
-                    _ => return Err(HandleCommandError),
-                },
-                None => return Err(HandleCommandError),
+                Some(ApplicationCommandInteractionDataOptionValue::Integer(value)) => {
+                    amount = Some(value);
+                }
+                _ => return Err(HandleCommandError),
             },
             "description" => match &option.resolved {
-                Some(value) => match value {
-                    ApplicationCommandInteractionDataOptionValue::String(value) => {
-                        description = Some(value);
-                    }
-                    _ => return Err(HandleCommandError),
-                },
-                None => return Err(HandleCommandError),
+                Some(ApplicationCommandInteractionDataOptionValue::String(value)) => {
+                    description = Some(value);
+                }
+                _ => return Err(HandleCommandError),
             },
             "user" => match &option.resolved {
-                Some(value) => match value {
-                    ApplicationCommandInteractionDataOptionValue::User(user, _member) => {
-                        user_opt = Some(user);
-                    }
-                    _ => return Err(HandleCommandError),
-                },
-                None => return Err(HandleCommandError),
+                Some(ApplicationCommandInteractionDataOptionValue::User(user, _member)) => {
+                    user_opt = Some(user);
+                }
+                _ => return Err(HandleCommandError),
             },
             _ => return Err(HandleCommandError),
         }
@@ -301,31 +292,22 @@ async fn bill_handler(
     for option in &command.data.options {
         match option.name.as_ref() {
             "amount" => match &option.resolved {
-                Some(value) => match value {
-                    ApplicationCommandInteractionDataOptionValue::Integer(value) => {
-                        amount = Some(value)
-                    }
-                    _ => return Err(HandleCommandError),
-                },
-                None => return Err(HandleCommandError),
+                Some(ApplicationCommandInteractionDataOptionValue::Integer(value)) => {
+                    amount = Some(value);
+                }
+                _ => return Err(HandleCommandError),
             },
             "description" => match &option.resolved {
-                Some(value) => match value {
-                    ApplicationCommandInteractionDataOptionValue::String(value) => {
-                        description = Some(value);
-                    }
-                    _ => return Err(HandleCommandError),
-                },
-                None => return Err(HandleCommandError),
+                Some(ApplicationCommandInteractionDataOptionValue::String(value)) => {
+                    description = Some(value);
+                }
+                _ => return Err(HandleCommandError),
             },
             _ => match &option.resolved {
-                Some(value) => match value {
-                    ApplicationCommandInteractionDataOptionValue::User(user, _member) => {
-                        users.push(user);
-                    }
-                    _ => return Err(HandleCommandError),
-                },
-                None => {}
+                Some(ApplicationCommandInteractionDataOptionValue::User(user, _member)) => {
+                    users.push(user);
+                }
+                _ => return Err(HandleCommandError),
             },
         }
     }
