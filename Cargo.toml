@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serenity = { version = "0.10", features = ["unstable_discord_api"] }
+serenity = { version = "0.10", default-features = false, features = ["client", "gateway", "rustls_backend", "model", "unstable_discord_api"] }
 tokio = { version = "1.13", features = ["macros", "rt-multi-thread"] }
 typemap_rev = "0.1.5"
 signal-hook = "0.3"
