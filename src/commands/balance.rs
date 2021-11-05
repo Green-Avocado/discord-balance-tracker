@@ -4,10 +4,15 @@ use crate::accounts::AccountsType;
 use crate::utils::*;
 
 use serenity::{
-    client::Context, model::interactions::application_command::ApplicationCommandInteraction,
+    builder::CreateApplicationCommand, client::Context,
+    model::interactions::application_command::ApplicationCommandInteraction,
 };
 
 use std::fmt::Write;
+
+pub fn balance_command(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
+    command.name("balance").description("Get balance")
+}
 
 pub async fn balance_handler(
     ctx: &Context,

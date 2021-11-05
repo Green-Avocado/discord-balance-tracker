@@ -3,13 +3,46 @@ use super::HandleCommandError;
 use crate::utils::*;
 
 use serenity::{
+    builder::CreateApplicationCommand,
     client::Context,
     model::interactions::application_command::{
         ApplicationCommandInteraction, ApplicationCommandInteractionDataOptionValue,
+        ApplicationCommandOptionType,
     },
 };
 
 use std::collections::HashMap;
+
+pub fn bill_command(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
+    let mut command = command
+        .name("bill")
+        .description("Bill user(s) for transaction")
+        .create_option(|option| {
+            option
+                .name("amount")
+                .description("Amount in dollars")
+                .kind(ApplicationCommandOptionType::String)
+                .required(true)
+        })
+        .create_option(|option| {
+            option
+                .name("description")
+                .description("Transaction description")
+                .kind(ApplicationCommandOptionType::String)
+                .required(true)
+        });
+
+    for i in 0..10 {
+        command = command.create_option(|option| {
+            option
+                .name(format!("user{}", i))
+                .description("User to bill")
+                .kind(ApplicationCommandOptionType::User)
+                .required(false)
+        })
+    }
+    command
+}
 
 pub async fn bill_handler(
     ctx: &Context,

@@ -3,13 +3,42 @@ use super::HandleCommandError;
 use crate::utils::*;
 
 use serenity::{
+    builder::CreateApplicationCommand,
     client::Context,
     model::interactions::application_command::{
         ApplicationCommandInteraction, ApplicationCommandInteractionDataOptionValue,
+        ApplicationCommandOptionType,
     },
 };
 
 use std::collections::HashMap;
+
+pub fn owe_command(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
+    command
+        .name("owe")
+        .description("Owe a user")
+        .create_option(|option| {
+            option
+                .name("amount")
+                .description("Amount in dollars")
+                .kind(ApplicationCommandOptionType::String)
+                .required(true)
+        })
+        .create_option(|option| {
+            option
+                .name("description")
+                .description("Transaction description")
+                .kind(ApplicationCommandOptionType::String)
+                .required(true)
+        })
+        .create_option(|option| {
+            option
+                .name("user")
+                .description("User to owe")
+                .kind(ApplicationCommandOptionType::User)
+                .required(true)
+        })
+}
 
 pub async fn owe_handler(
     ctx: &Context,

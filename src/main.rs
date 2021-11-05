@@ -3,7 +3,11 @@ mod commands;
 mod utils;
 
 use accounts::Accounts;
-use commands::{balance::balance_handler, bill::bill_handler, owe::owe_handler};
+use commands::{
+    balance::{balance_command, balance_handler},
+    bill::{bill_command, bill_handler},
+    owe::{owe_command, owe_handler},
+};
 
 use serenity::{
     async_trait,
@@ -12,8 +16,7 @@ use serenity::{
     model::{
         gateway::Ready,
         interactions::{
-            application_command::{ApplicationCommand, ApplicationCommandOptionType},
-            Interaction, InteractionResponseType,
+            application_command::ApplicationCommand, Interaction, InteractionResponseType,
         },
     },
 };
@@ -66,65 +69,9 @@ impl EventHandler for Handler {
 
         let commands = ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {
             commands
-                .create_application_command(|command| {
-                    command.name("balance").description("Get balance")
-                })
-                .create_application_command(|command| {
-                    command
-                        .name("owe")
-                        .description("Owe a user")
-                        .create_option(|option| {
-                            option
-                                .name("amount")
-                                .description("Amount in dollars")
-                                .kind(ApplicationCommandOptionType::String)
-                                .required(true)
-                        })
-                        .create_option(|option| {
-                            option
-                                .name("description")
-                                .description("Transaction description")
-                                .kind(ApplicationCommandOptionType::String)
-                                .required(true)
-                        })
-                        .create_option(|option| {
-                            option
-                                .name("user")
-                                .description("User to owe")
-                                .kind(ApplicationCommandOptionType::User)
-                                .required(true)
-                        })
-                })
-                .create_application_command(|command| {
-                    let mut command = command
-                        .name("bill")
-                        .description("Bill user(s) for transaction")
-                        .create_option(|option| {
-                            option
-                                .name("amount")
-                                .description("Amount in dollars")
-                                .kind(ApplicationCommandOptionType::String)
-                                .required(true)
-                        })
-                        .create_option(|option| {
-                            option
-                                .name("description")
-                                .description("Transaction description")
-                                .kind(ApplicationCommandOptionType::String)
-                                .required(true)
-                        });
-
-                    for i in 0..10 {
-                        command = command.create_option(|option| {
-                            option
-                                .name(format!("user{}", i))
-                                .description("User to bill")
-                                .kind(ApplicationCommandOptionType::User)
-                                .required(false)
-                        })
-                    }
-                    command
-                })
+                .create_application_command(balance_command)
+                .create_application_command(owe_command)
+                .create_application_command(bill_command)
         })
         .await;
 
