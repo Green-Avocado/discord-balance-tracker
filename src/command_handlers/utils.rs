@@ -82,6 +82,10 @@ pub fn parse_money(mut input: &str) -> Result<i64, ParseMoneyError> {
         };
     }
 
+    if let Some(_next) = split.next() {
+        return Err(ParseMoneyError);
+    }
+
     if negative {
         Ok(-(i64::from(money)))
     } else {
@@ -194,6 +198,26 @@ mod tests {
                 }
             }
             Err(e) => return Err(e.to_string()),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_money_error() -> Result<(), String> {
+        match parse_money("a") {
+            Ok(actual) => return Err(format!("Expected error, got {}", actual)),
+            Err(_e) => {}
+        }
+
+        match parse_money("-0.0.1") {
+            Ok(actual) => return Err(format!("Expected error, got {}", actual)),
+            Err(_e) => {}
+        }
+
+        match parse_money("-0.-1") {
+            Ok(actual) => return Err(format!("Expected error, got {}", actual)),
+            Err(_e) => {}
         }
 
         Ok(())
