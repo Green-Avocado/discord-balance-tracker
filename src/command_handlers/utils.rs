@@ -72,6 +72,10 @@ pub fn parse_money(mut input: &str) -> Result<i64, ParseMoneyError> {
     };
 
     if let Some(next) = split.next() {
+        if next.len() != 2 {
+            return Err(ParseMoneyError);
+        }
+
         match next.parse::<u32>() {
             Ok(cents) => money += cents,
             Err(_e) => return Err(ParseMoneyError),
@@ -82,5 +86,116 @@ pub fn parse_money(mut input: &str) -> Result<i64, ParseMoneyError> {
         Ok(-(i64::from(money)))
     } else {
         Ok(money.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_money_zero() {
+        assert_eq!("$0.00", format_money(0));
+    }
+
+    #[test]
+    fn test_format_money_positive() {
+        assert_eq!("$0.01", format_money(1));
+        assert_eq!("$0.12", format_money(12));
+        assert_eq!("$1.23", format_money(123));
+        assert_eq!("$12.34", format_money(1234));
+    }
+
+    #[test]
+    fn test_format_money_negative() {
+        assert_eq!("-$0.01", format_money(-1));
+        assert_eq!("-$0.12", format_money(-12));
+        assert_eq!("-$1.23", format_money(-123));
+        assert_eq!("-$12.34", format_money(-1234));
+    }
+
+    #[test]
+    fn test_parse_money_zero() -> Result<(), String> {
+        let expected = 0;
+        match parse_money("0") {
+            Ok(actual) => {
+                if expected != actual {
+                    return Err(format!("Expected {}, got {}", expected, actual));
+                }
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_money_positive() -> Result<(), String> {
+        let expected = 1;
+        match parse_money("0.01") {
+            Ok(actual) => {
+                if expected != actual {
+                    return Err(format!("Expected {}, got {}", expected, actual));
+                }
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+
+        let expected = 1200;
+        match parse_money("12") {
+            Ok(actual) => {
+                if expected != actual {
+                    return Err(format!("Expected {}, got {}", expected, actual));
+                }
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+
+        let expected = 1234;
+        match parse_money("$12.34") {
+            Ok(actual) => {
+                if expected != actual {
+                    return Err(format!("Expected {}, got {}", expected, actual));
+                }
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_money_negative() -> Result<(), String> {
+        let expected = -1;
+        match parse_money("-0.01") {
+            Ok(actual) => {
+                if expected != actual {
+                    return Err(format!("Expected {}, got {}", expected, actual));
+                }
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+
+        let expected = -1200;
+        match parse_money("-12") {
+            Ok(actual) => {
+                if expected != actual {
+                    return Err(format!("Expected {}, got {}", expected, actual));
+                }
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+
+        let expected = -1234;
+        match parse_money("-$12.34") {
+            Ok(actual) => {
+                if expected != actual {
+                    return Err(format!("Expected {}, got {}", expected, actual));
+                }
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+
+        Ok(())
     }
 }
