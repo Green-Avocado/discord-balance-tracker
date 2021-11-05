@@ -1,7 +1,7 @@
 use super::HandleCommandError;
 
-use crate::accounts::AccountsType;
-use crate::utils::*;
+use super::super::accounts::AccountsType;
+use super::super::utils::*;
 
 use serenity::{
     builder::CreateApplicationCommand, client::Context,

@@ -1,12 +1,13 @@
-mod accounts;
-mod commands;
-mod utils;
+mod model;
 
-use accounts::Accounts;
-use commands::{
-    balance::{balance_command, balance_handler},
-    bill::{bill_command, bill_handler},
-    owe::{owe_command, owe_handler},
+use model::{
+    accounts::Accounts,
+    commands::{
+        balance::{balance_command, balance_handler},
+        bill::{bill_command, bill_handler},
+        owe::{owe_command, owe_handler},
+        HandleCommandError,
+    },
 };
 
 use serenity::{
@@ -16,7 +17,8 @@ use serenity::{
     model::{
         gateway::Ready,
         interactions::{
-            application_command::ApplicationCommand, Interaction, InteractionResponseType,
+            application_command::ApplicationCommand, Interaction,
+            InteractionResponseType::ChannelMessageWithSource,
         },
     },
 };
@@ -38,7 +40,7 @@ impl EventHandler for Handler {
                 "balance" => balance_handler(&ctx, &command).await,
                 "owe" => owe_handler(&ctx, &command).await,
                 "bill" => bill_handler(&ctx, &command).await,
-                _ => Ok("not implemented".to_string()),
+                _ => Err(HandleCommandError),
             };
 
             let content = match content {
@@ -49,7 +51,7 @@ impl EventHandler for Handler {
             if let Err(e) = command
                 .create_interaction_response(&ctx.http, |response| {
                     response
-                        .kind(InteractionResponseType::ChannelMessageWithSource)
+                        .kind(ChannelMessageWithSource)
                         .interaction_response_data(|message| message.content(content))
                 })
                 .await
