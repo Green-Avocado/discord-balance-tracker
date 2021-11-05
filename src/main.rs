@@ -20,7 +20,7 @@ use serenity::{
         },
     },
 };
-use signal_hook::consts::signal::*;
+use signal_hook::consts::signal::{SIGINT, SIGTERM};
 use signal_hook_tokio::Signals;
 use tokio::sync::RwLock;
 
