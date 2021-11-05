@@ -1,8 +1,9 @@
 mod accounts;
-mod command_handlers;
+mod commands;
+mod utils;
 
 use accounts::Accounts;
-use command_handlers::{balance_handler, bill_handler, owe_handler};
+use commands::{balance::balance_handler, bill::bill_handler, owe::owe_handler};
 
 use serenity::{
     async_trait,
