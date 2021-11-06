@@ -16,7 +16,7 @@ pub async fn write_accounts_file(data: Arc<RwLock<TypeMap>>) {
         return;
     }
 
-    if let Ok(file) = File::open(DATA_FILE) {
+    if let Ok(file) = File::create(DATA_FILE) {
         serde_json::to_writer_pretty(file, &*accounts).unwrap();
     }
 }
@@ -25,7 +25,7 @@ pub async fn read_accounts_file(data: Arc<RwLock<TypeMap>>) {
     let lock = get_lock(data).await;
     let mut accounts = lock.write().await;
 
-    if let Ok(file) = File::create(DATA_FILE) {
+    if let Ok(file) = File::open(DATA_FILE) {
         *accounts = serde_json::from_reader(file).unwrap();
     }
 }
