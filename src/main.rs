@@ -30,7 +30,7 @@ use signal_hook::consts::signal::{SIGINT, SIGTERM};
 use signal_hook_tokio::Signals;
 use tokio::sync::RwLock;
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 struct Handler;
 
@@ -68,7 +68,7 @@ impl EventHandler for Handler {
 
         {
             let mut data = ctx.data.write().await;
-            data.insert::<Accounts>(AccountsType::new());
+            data.insert::<Accounts>(AccountsType::new(RwLock::new(HashMap::new())));
         }
 
         read_accounts_file(ctx.data.clone()).await;
