@@ -1,5 +1,5 @@
 use serenity::model::id::UserId;
-use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use tokio::sync::RwLock;
 use typemap_rev::TypeMapKey;
 
 use std::{collections::HashMap, sync::Arc};
