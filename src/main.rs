@@ -10,6 +10,7 @@ use model::{
         HandleCommandError,
     },
 };
+use persistence::write_accounts_file;
 
 use serenity::{
     async_trait,
@@ -67,6 +68,12 @@ impl EventHandler for Handler {
             data.insert::<Accounts>(AccountsType::new());
         }
 
+        let signals = match Signals::new(&[SIGTERM, SIGINT]) {
+            Ok(signals) => signals,
+            Err(_e) => std::process::exit(1),
+        };
+        tokio::spawn(handle_signals(signals, ctx.clone()));
+
         let commands = ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {
             commands
                 .create_application_command(balance_command)
@@ -79,11 +86,12 @@ impl EventHandler for Handler {
     }
 }
 
-async fn handle_signals(signals: Signals) {
+async fn handle_signals(signals: Signals, ctx: Context) {
     let mut signals = signals.fuse();
     while let Some(signal) = signals.next().await {
         match signal {
             SIGTERM | SIGINT => {
+                write_accounts_file(&ctx).await;
                 std::process::exit(0);
             }
             _ => unreachable!(),
@@ -94,12 +102,6 @@ async fn handle_signals(signals: Signals) {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-
-    let signals = match Signals::new(&[SIGTERM, SIGINT]) {
-        Ok(signals) => signals,
-        Err(_e) => std::process::exit(1),
-    };
-    tokio::spawn(handle_signals(signals));
 
     let token = std::env::var("DISCORD_TOKEN").expect("token");
 
