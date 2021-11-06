@@ -1,7 +1,8 @@
 mod model;
+mod persistence;
 
 use model::{
-    accounts::Accounts,
+    accounts::{Accounts, AccountsType},
     commands::{
         balance::{balance_command, balance_handler},
         bill::{bill_command, bill_handler},
@@ -24,11 +25,8 @@ use serenity::{
 };
 use signal_hook::consts::signal::{SIGINT, SIGTERM};
 use signal_hook_tokio::Signals;
-use tokio::sync::RwLock;
 
 use dotenv::dotenv;
-
-use std::{collections::HashMap, sync::Arc};
 
 struct Handler;
 
@@ -66,7 +64,7 @@ impl EventHandler for Handler {
 
         {
             let mut data = ctx.data.write().await;
-            data.insert::<Accounts>(Arc::new(RwLock::new(HashMap::new())));
+            data.insert::<Accounts>(AccountsType::new());
         }
 
         let commands = ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {
