@@ -1,0 +1,10 @@
+Dockerfile
+README.md
+LICENSE
+
+data
+target
+
+.dockerignore
+.git
+.gitignore
