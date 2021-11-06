@@ -10,7 +10,7 @@ use model::{
         HandleCommandError,
     },
 };
-use persistence::write_accounts_file;
+use persistence::{read_accounts_file, write_accounts_file};
 
 use dotenv::dotenv;
 use serenity::{
@@ -70,6 +70,8 @@ impl EventHandler for Handler {
             let mut data = ctx.data.write().await;
             data.insert::<Accounts>(AccountsType::new());
         }
+
+        read_accounts_file(ctx.data.clone()).await;
 
         let signals = match Signals::new(&[SIGTERM, SIGINT]) {
             Ok(signals) => signals,

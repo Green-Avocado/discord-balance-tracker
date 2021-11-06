@@ -1,29 +1,30 @@
 use crate::model::accounts::{Accounts, AccountsType};
 
-use serde::{Serialize, Serializer};
 use serde_json;
-use serenity::{client::Context, prelude::TypeMap};
+use serenity::prelude::TypeMap;
+use tokio::sync::RwLock;
 
-use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use typemap_rev::TypeMapKey;
+use std::{fs::OpenOptions, sync::Arc};
 
-use std::{collections::HashMap, fs::File, sync::Arc};
+const DATA_FILE: &str = "data/balances.json";
 
 pub async fn write_accounts_file(data: Arc<RwLock<TypeMap>>) {
-    let accounts_lock = {
-        let data_read = data.read().await;
-        match data_read.get::<Accounts>() {
-            Some(data) => data.clone(),
-            None => panic!("Could not get lock"),
-        }
-    };
-
-    let accounts = accounts_lock.read().await;
-    let file = File::create("balances.json").unwrap();
-    serde_json::to_writer_pretty(file, &*accounts).unwrap();
+    let lock = get_lock(data).await;
+    let accounts = lock.read().await;
+    if let Ok(file) = OpenOptions::new().write(true).open(DATA_FILE) {
+        serde_json::to_writer_pretty(file, &*accounts).unwrap();
+    }
 }
 
-pub async fn read_accounts_file(data: &Arc<RwLock<TypeMap>>) {
+pub async fn read_accounts_file(data: Arc<RwLock<TypeMap>>) {
+    let lock = get_lock(data).await;
+    let mut accounts = lock.write().await;
+    if let Ok(file) = OpenOptions::new().read(true).open(DATA_FILE) {
+        *accounts = serde_json::from_reader(file).unwrap();
+    }
+}
+
+async fn get_lock(data: Arc<RwLock<TypeMap>>) -> AccountsType {
     let accounts_lock = {
         let data_read = data.read().await;
         match data_read.get::<Accounts>() {
@@ -32,5 +33,5 @@ pub async fn read_accounts_file(data: &Arc<RwLock<TypeMap>>) {
         }
     };
 
-    let accounts = accounts_lock.write().await;
+    accounts_lock
 }
