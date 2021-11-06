@@ -12,6 +12,7 @@ use model::{
 };
 use persistence::write_accounts_file;
 
+use dotenv::dotenv;
 use serenity::{
     async_trait,
     client::{Client, Context, EventHandler},
@@ -23,11 +24,13 @@ use serenity::{
             InteractionResponseType::ChannelMessageWithSource,
         },
     },
+    prelude::TypeMap,
 };
 use signal_hook::consts::signal::{SIGINT, SIGTERM};
 use signal_hook_tokio::Signals;
+use tokio::sync::RwLock;
 
-use dotenv::dotenv;
+use std::sync::Arc;
 
 struct Handler;
 
@@ -72,7 +75,7 @@ impl EventHandler for Handler {
             Ok(signals) => signals,
             Err(_e) => std::process::exit(1),
         };
-        tokio::spawn(handle_signals(signals, ctx.clone()));
+        tokio::spawn(handle_signals(signals, ctx.data.clone()));
 
         let commands = ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {
             commands
@@ -86,12 +89,12 @@ impl EventHandler for Handler {
     }
 }
 
-async fn handle_signals(signals: Signals, ctx: Context) {
+async fn handle_signals(signals: Signals, data: Arc<RwLock<TypeMap>>) {
     let mut signals = signals.fuse();
     while let Some(signal) = signals.next().await {
         match signal {
             SIGTERM | SIGINT => {
-                write_accounts_file(&ctx).await;
+                write_accounts_file(data).await;
                 std::process::exit(0);
             }
             _ => unreachable!(),
