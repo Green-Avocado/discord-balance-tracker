@@ -1,4 +1,4 @@
-use super::HandleCommandError;
+use super::{CommandResult, HandleCommandError, TransactionType};
 
 use super::super::accounts::AccountsType;
 use super::super::utils::*;
@@ -17,7 +17,7 @@ pub fn balance_command(command: &mut CreateApplicationCommand) -> &mut CreateApp
 pub async fn balance_handler(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
-) -> Result<String, HandleCommandError> {
+) -> Result<CommandResult, HandleCommandError> {
     let accounts: AccountsType = match get_accounts_lock(&ctx).await {
         Ok(accounts_lock) => accounts_lock,
         Err(_e) => return Err(HandleCommandError),
@@ -41,5 +41,8 @@ pub async fn balance_handler(
         }
     }
 
-    Ok(response)
+    Ok(CommandResult {
+        response,
+        transaction: TransactionType::None,
+    })
 }

@@ -4,17 +4,13 @@ use serde_json;
 use serenity::prelude::TypeMap;
 use tokio::sync::RwLock;
 
-use std::{fs::create_dir_all, fs::File, sync::Arc};
+use std::{fs::File, sync::Arc};
 
 const DATA_FILE: &str = "data/balances.json";
 
 pub async fn write_accounts_file(data: Arc<RwLock<TypeMap>>) {
     let lock = get_lock(data).await;
     let accounts = lock.read().await;
-
-    if let Err(_e) = create_dir_all("data") {
-        return;
-    }
 
     if let Ok(file) = File::create(DATA_FILE) {
         serde_json::to_writer_pretty(file, &*accounts).unwrap();

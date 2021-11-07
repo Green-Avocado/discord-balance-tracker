@@ -1,6 +1,8 @@
+mod logging;
 mod model;
 mod persistence;
 
+use logging::Log;
 use model::{
     accounts::{Accounts, AccountsType},
     commands::{
@@ -30,7 +32,11 @@ use signal_hook::consts::signal::{SIGINT, SIGTERM};
 use signal_hook_tokio::Signals;
 use tokio::sync::RwLock;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    fs::{create_dir_all, OpenOptions},
+    sync::Arc,
+};
 
 struct Handler;
 
@@ -45,8 +51,8 @@ impl EventHandler for Handler {
                 _ => Err(HandleCommandError),
             };
 
-            let content = match content {
-                Ok(content) => content,
+            let reply = match content {
+                Ok(result) => result.response,
                 Err(_e) => "Error handling command".to_string(),
             };
 
@@ -54,7 +60,7 @@ impl EventHandler for Handler {
                 .create_interaction_response(&ctx.http, |response| {
                     response
                         .kind(ChannelMessageWithSource)
-                        .interaction_response_data(|message| message.content(content))
+                        .interaction_response_data(|message| message.content(reply))
                 })
                 .await
             {
@@ -69,6 +75,12 @@ impl EventHandler for Handler {
         {
             let mut data = ctx.data.write().await;
             data.insert::<Accounts>(AccountsType::new(RwLock::new(HashMap::new())));
+            data.insert::<Log>(Arc::new(RwLock::new(
+                OpenOptions::new()
+                    .append(true)
+                    .open("data/transactions.log")
+                    .unwrap(),
+            )));
         }
 
         read_accounts_file(ctx.data.clone()).await;
@@ -107,6 +119,11 @@ async fn handle_signals(signals: Signals, data: Arc<RwLock<TypeMap>>) {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
+
+    if let Err(e) = create_dir_all("data") {
+        eprintln!("{}", e);
+        return;
+    }
 
     let token = std::env::var("DISCORD_TOKEN").expect("token");
 

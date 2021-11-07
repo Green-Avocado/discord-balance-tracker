@@ -1,13 +1,16 @@
-use super::HandleCommandError;
+use super::{BillTransaction, CommandResult, HandleCommandError, TransactionType};
 
 use super::super::utils::*;
 
 use serenity::{
     builder::CreateApplicationCommand,
     client::Context,
-    model::interactions::application_command::{
-        ApplicationCommandInteraction, ApplicationCommandInteractionDataOptionValue,
-        ApplicationCommandOptionType,
+    model::{
+        interactions::application_command::{
+            ApplicationCommandInteraction, ApplicationCommandInteractionDataOptionValue,
+            ApplicationCommandOptionType,
+        },
+        prelude::User,
     },
 };
 
@@ -47,7 +50,7 @@ pub fn bill_command(command: &mut CreateApplicationCommand) -> &mut CreateApplic
 pub async fn bill_handler(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
-) -> Result<String, HandleCommandError> {
+) -> Result<CommandResult, HandleCommandError> {
     let mut amount = None;
     let mut description = None;
     let mut users = Vec::new();
@@ -82,6 +85,8 @@ pub async fn bill_handler(
                 Err(_e) => return Err(HandleCommandError),
             };
 
+            let mut user_vec = Vec::<User>::new();
+
             {
                 let mut accounts = accounts.write().await;
                 for receiver in &users {
@@ -90,16 +95,27 @@ pub async fn bill_handler(
 
                     let sender_entry = accounts.entry(command.user.id).or_insert(HashMap::new());
                     *sender_entry.entry(receiver.id).or_insert(0) += amount;
+
+                    user_vec.push((*receiver).clone());
                 }
             }
 
-            return Ok(format!(
+            let response = format!(
                 "{} billed {} to {} users for {}",
                 command.user.tag(),
                 format_money(amount),
                 users.len(),
                 description
-            ));
+            );
+
+            return Ok(CommandResult {
+                response,
+                transaction: TransactionType::Bill(BillTransaction {
+                    initiator: command.user.clone(),
+                    amount,
+                    recipients: user_vec,
+                }),
+            });
         }
     }
 

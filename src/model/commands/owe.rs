@@ -1,4 +1,4 @@
-use super::HandleCommandError;
+use super::{CommandResult, HandleCommandError, OweTransaction, TransactionType};
 
 use super::super::utils::*;
 
@@ -43,7 +43,7 @@ pub fn owe_command(command: &mut CreateApplicationCommand) -> &mut CreateApplica
 pub async fn owe_handler(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
-) -> Result<String, HandleCommandError> {
+) -> Result<CommandResult, HandleCommandError> {
     let mut amount = None;
     let mut description = None;
     let mut user_opt = None;
@@ -93,13 +93,22 @@ pub async fn owe_handler(
                     }
                 }
 
-                return Ok(format!(
+                let response = format!(
                     "{} owes {} to {} for {}",
                     command.user.tag(),
                     format_money(amount),
                     receiver.tag(),
                     description
-                ));
+                );
+
+                return Ok(CommandResult {
+                    response,
+                    transaction: TransactionType::Owe(OweTransaction {
+                        initiator: command.user.clone(),
+                        amount,
+                        recipient: receiver.clone(),
+                    }),
+                });
             }
         }
     }
