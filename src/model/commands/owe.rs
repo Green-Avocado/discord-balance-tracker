@@ -107,6 +107,7 @@ pub async fn owe_handler(
                         initiator: command.user.clone(),
                         amount,
                         recipient: receiver.clone(),
+                        description: description.to_string(),
                     }),
                 });
             }

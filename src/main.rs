@@ -2,7 +2,7 @@ mod logging;
 mod model;
 mod persistence;
 
-use logging::Log;
+use logging::{log, Log};
 use model::{
     accounts::{Accounts, AccountsType},
     commands::{
@@ -52,7 +52,10 @@ impl EventHandler for Handler {
             };
 
             let reply = match content {
-                Ok(result) => result.response,
+                Ok(result) => {
+                    log(ctx.data.clone(), result.transaction).await;
+                    result.response
+                }
                 Err(_e) => "Error handling command".to_string(),
             };
 
@@ -77,6 +80,7 @@ impl EventHandler for Handler {
             data.insert::<Accounts>(AccountsType::new(RwLock::new(HashMap::new())));
             data.insert::<Log>(Arc::new(RwLock::new(
                 OpenOptions::new()
+                    .create(true)
                     .append(true)
                     .open("data/transactions.log")
                     .unwrap(),

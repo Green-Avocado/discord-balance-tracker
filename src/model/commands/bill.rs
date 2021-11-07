@@ -114,6 +114,7 @@ pub async fn bill_handler(
                     initiator: command.user.clone(),
                     amount,
                     recipients: user_vec,
+                    description: description.to_string(),
                 }),
             });
         }
