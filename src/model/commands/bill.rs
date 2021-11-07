@@ -80,7 +80,7 @@ pub async fn bill_handler(
 
     if let Some(Ok(amount)) = amount {
         if let Some(description) = description {
-            let accounts = match get_accounts_lock(&ctx).await {
+            let accounts = match get_accounts_lock(ctx).await {
                 Ok(accounts_lock) => accounts_lock,
                 Err(_e) => return Err(HandleCommandError),
             };

@@ -1,6 +1,5 @@
 use crate::model::accounts::{Accounts, AccountsType};
 
-use serde_json;
 use serenity::prelude::TypeMap;
 use tokio::sync::RwLock;
 

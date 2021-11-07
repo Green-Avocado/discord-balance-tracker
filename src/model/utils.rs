@@ -52,12 +52,12 @@ pub fn format_money(money: i64) -> String {
 pub fn parse_money(mut input: &str) -> Result<i64, ParseMoneyError> {
     let mut negative = false;
 
-    if input.chars().nth(0).unwrap() == '-' {
+    if input.starts_with('-') {
         negative = true;
         input = &((*input)[1..]);
     }
 
-    if input.chars().nth(0).unwrap() == '$' {
+    if input.starts_with('$') {
         input = &((*input)[1..]);
     }
 

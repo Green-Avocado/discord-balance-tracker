@@ -103,7 +103,7 @@ impl EventHandler for Handler {
         })
         .await;
 
-        println!("Loaded {} commands.", commands.unwrap_or(Vec::new()).len());
+        println!("Loaded {} commands.", commands.unwrap_or_default().len());
     }
 }
 

@@ -18,7 +18,7 @@ pub async fn balance_handler(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) -> Result<CommandResult, HandleCommandError> {
-    let accounts: AccountsType = match get_accounts_lock(&ctx).await {
+    let accounts: AccountsType = match get_accounts_lock(ctx).await {
         Ok(accounts_lock) => accounts_lock,
         Err(_e) => return Err(HandleCommandError),
     };
@@ -29,9 +29,9 @@ pub async fn balance_handler(
     if let Some(account) = accounts_read.get(&command.user.id) {
         for (id, &balance) in account {
             if let Ok(user) = id.to_user(ctx).await {
-                if let Err(_e) = write!(
+                if let Err(_e) = writeln!(
                     response,
-                    "`{:<32}{:>16}`\n",
+                    "`{:<32}{:>16}`",
                     user.tag(),
                     format_money(balance)
                 ) {
