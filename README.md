@@ -5,17 +5,17 @@
 
 Discord bot for managing group finances
 
+
+
 ## Running:
 
 ```
 $ DISCORD_TOKEN={TOKEN}\
- APPLICATION_ID={ID}\
- cargo run
+  APPLICATION_ID={ID}\
+  cargo run
 ```
 
-OR
-
-`.env`:
+#### using `.env` file
 
 ```
 DISCORD_TOKEN={TOKEN}
@@ -26,24 +26,33 @@ APPLICATION_ID={ID}
 $ cargo run
 ```
 
+#### using docker image
+
+```
+$ docker build -t discord-balance-tracker .
+$ docker run -d \
+  --name discord-balance-tracker \
+  --env DISCORD_TOKEN={TOKEN} \
+  --env APPLICATION_ID={ID} \
+  discord-balance-tracker
+```
+
+
+
 ## Commands
 
-### `/balance`
+#### `/balance`
 
 No parameters
 
-### `/owe amount description user`
+#### `/owe <amount> <description> <user>`
 
-amount:String - the amount in dollars to owe
+- \<amount>:String - the amount in dollars to owe
+- \<description>:String - description of the transaction
+- \<user>:User - the user to owe to
 
-description:String - description of the transaction
+#### `/bill <amount> <description> [user0 ... user9]`
 
-user:User - the user to owe to
-
-### `/bill amount description [user0 ... user9]`
-
-amount:String - the amount in dollars to owe
-
-description:String - description of the transaction
-
-[user0 ... user9]:User - the users to bill
+- \<amount>:String - the amount in dollars to owe
+- \<description>:String - description of the transaction
+- [user0 ... user9]:User - the users to bill
