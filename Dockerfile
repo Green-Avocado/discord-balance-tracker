@@ -3,7 +3,7 @@
 ##
 ## Build
 ##
-From rust:alpine AS build-env
+FROM rust:alpine AS build-env
 
 RUN apk add --no-cache musl-dev
 
@@ -21,7 +21,7 @@ RUN cargo build --release --target x86_64-unknown-linux-musl
 ##
 ## Production
 ##
-From scratch AS production-env
+FROM scratch AS production-env
 
 WORKDIR /application
 
