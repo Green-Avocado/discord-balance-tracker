@@ -1,5 +1,8 @@
 # discord-balance-tracker
 
+[![Rust](https://github.com/Green-Avocado/discord-balance-tracker/actions/workflows/rust.yml/badge.svg)](https://github.com/Green-Avocado/discord-balance-tracker/actions/workflows/rust.yml)
+[![Docker Image CI](https://github.com/Green-Avocado/discord-balance-tracker/actions/workflows/docker-image.yml/badge.svg)](https://github.com/Green-Avocado/discord-balance-tracker/actions/workflows/docker-image.yml)
+
 Discord bot for managing group finances
 
 ## Running:
