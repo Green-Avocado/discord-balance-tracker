@@ -27,7 +27,6 @@ WORKDIR /application
 
 COPY --from=build-env /build/target/x86_64-unknown-linux-musl/release/discord-balance-tracker ./
 COPY --from=build-env --chown=66534:66534 /build/data ./data
-COPY .env ./
 
 USER 66534:66534
 
